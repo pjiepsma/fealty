@@ -25,8 +25,19 @@ export class POIService {
 
     try {
       const response = await fetch(
-        `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`
+        `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`,
+        {
+          headers: {
+            'User-Agent': 'FealtyApp/1.0',
+          },
+        }
       );
+
+      if (!response.ok) {
+        console.error('Overpass API error:', response.status, response.statusText);
+        return [];
+      }
+
       const data = await response.json();
 
       return data.elements

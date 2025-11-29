@@ -443,9 +443,7 @@ export default function MapScreen() {
               borderColor: '#000',
             }}
           />
-          <Callout title="Mock POI" containerStyle={{ backgroundColor: '#2a2a2a', padding: 0 }}>
-            <POICallout poiId="mock-poi-test" poiName="Test Location" />
-          </Callout>
+          <Callout title="Test Location" />
         </PointAnnotation>
       </MapView>
       

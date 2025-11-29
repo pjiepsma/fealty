@@ -3,7 +3,6 @@ import { View, StyleSheet } from 'react-native';
 import { PointAnnotation, Callout } from '@rnmapbox/maps';
 import { POI } from '@/types';
 import { POI_CATEGORIES } from '@/constants/config';
-import { POICallout } from './POICallout';
 import {
   generateCastleIcon,
   generateWindmillIcon,
@@ -79,9 +78,7 @@ export function POIMarker({ poi, size = 20 }: POIMarkerProps) {
       }}
     >
       <POIIcon type={poi.type} size={size} />
-      <Callout title={poi.name} containerStyle={{ backgroundColor: '#2a2a2a', padding: 0 }}>
-        <POICallout poiId={poi.id} poiName={poi.name} />
-      </Callout>
+      <Callout title={poi.name} />
     </PointAnnotation>
   );
 }
