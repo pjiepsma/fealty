@@ -272,9 +272,12 @@ ALTER TABLE public.active_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_stats ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.monthly_leaderboard ENABLE ROW LEVEL SECURITY;
 
--- Users: users can read all, update only their own
+-- Users: users can read all, insert their own during signup, update only their own
 CREATE POLICY "Users are viewable by everyone" ON public.users
   FOR SELECT USING (true);
+
+CREATE POLICY "Users can insert their own profile" ON public.users
+  FOR INSERT WITH CHECK (auth.uid() = id);
 
 CREATE POLICY "Users can update their own data" ON public.users
   FOR UPDATE USING (auth.uid() = id);

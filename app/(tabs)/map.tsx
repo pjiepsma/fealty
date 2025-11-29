@@ -15,6 +15,7 @@ import Mapbox, {
   FillLayer,
   LineLayer,
   SymbolLayer,
+  Callout,
 } from '@rnmapbox/maps';
 import { View } from 'react-native';
 import { calculateDistance } from '@/utils/distance';
@@ -22,6 +23,7 @@ import { generateCirclePolygon, generateProgressArc, generateCastleIcon } from '
 import { CLAIM_CONSTANTS, REWARD_SYSTEM } from '@/constants/config';
 import { usePOIs } from '@/hooks/usePOIs';
 import { POIMarker } from '@/components/map/POIMarker';
+import { POICallout } from '@/components/map/POICallout';
 
 const { ENTRY_DURATION, CLAIM_RADIUS } = CLAIM_CONSTANTS;
 const { MINUTE_BONUS_SECONDS } = REWARD_SYSTEM;
@@ -423,32 +425,28 @@ export default function MapScreen() {
           <POIMarker key={poi.id} poi={poi} size={14} />
         ))}
         
-        {/* Mock POI Marker - simplified castle icon like the reference image */}
-        <ShapeSource
-          id="poi-marker"
-          shape={{
-            type: 'Feature',
-            geometry: {
-              type: 'Polygon',
-              coordinates: [generateCastleIcon(MARKER_LNG, MARKER_LAT, 14)],
-            },
-            properties: {},
+        {/* Mock POI Marker with Callout */}
+        <PointAnnotation
+          id="mock-poi"
+          coordinate={[MARKER_LNG, MARKER_LAT]}
+          onSelected={() => {
+            console.log('✅ Mock POI Selected');
           }}
         >
-          <FillLayer
-            id="poi-marker-fill"
+          <View
             style={{
-              fillColor: '#8B4513', // Brown/stone color
+              width: 20,
+              height: 20,
+              backgroundColor: '#8B4513',
+              borderRadius: 10,
+              borderWidth: 2,
+              borderColor: '#000',
             }}
           />
-          <LineLayer
-            id="poi-marker-stroke"
-            style={{
-              lineColor: '#000000', // Black outline like the reference
-              lineWidth: 2,
-            }}
-          />
-        </ShapeSource>
+          <Callout title="Mock POI" containerStyle={{ backgroundColor: '#2a2a2a', padding: 0 }}>
+            <POICallout poiId="mock-poi-test" poiName="Test Location" />
+          </Callout>
+        </PointAnnotation>
       </MapView>
       
       {/* Capture timer display - Phase 2 (shows when capturing) */}

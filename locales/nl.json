@@ -1,0 +1,315 @@
+{
+  "common": {
+    "loading": "Laden...",
+    "error": "Fout",
+    "success": "Succes",
+    "cancel": "Annuleren",
+    "confirm": "Bevestigen",
+    "close": "Sluiten",
+    "save": "Opslaan"
+  },
+  "auth": {
+    "login": {
+      "title": "Welkom bij Fealty",
+      "subtitle": "Bewijs je trouw, verdien je kroon 👑",
+      "email": "E-mail",
+      "password": "Wachtwoord",
+      "loginButton": "Inloggen",
+      "loggingIn": "Inloggen...",
+      "noAccount": "Nog geen account?",
+      "signUp": "Registreren",
+      "errors": {
+        "fillAllFields": "Vul alle velden in",
+        "loginFailed": "Inloggen mislukt",
+        "invalidCredentials": "Ongeldig e-mailadres of wachtwoord",
+        "networkError": "Netwerkfout. Controleer je verbinding en probeer het opnieuw."
+      }
+    },
+    "signup": {
+      "title": "Word lid van Fealty",
+      "subtitle": "Begin je reis van trouw",
+      "username": "Gebruikersnaam",
+      "email": "E-mail",
+      "password": "Wachtwoord (min 6 tekens)",
+      "signupButton": "Registreren",
+      "creatingAccount": "Account aanmaken...",
+      "hasAccount": "Heb je al een account?",
+      "login": "Inloggen",
+      "success": {
+        "title": "Succes",
+        "message": "Account aangemaakt! Controleer je e-mail om te verifiëren.",
+        "ok": "OK"
+      },
+      "errors": {
+        "fillAllFields": "Vul alle velden in",
+        "passwordTooShort": "Wachtwoord moet minimaal 6 tekens zijn",
+        "signupFailed": "Registreren mislukt",
+        "userExists": "Dit e-mailadres is al geregistreerd. Log in plaats daarvan in.",
+        "usernameExists": "Deze gebruikersnaam is al in gebruik. Kies een andere.",
+        "invalidEmail": "Voer een geldig e-mailadres in",
+        "networkError": "Netwerkfout. Controleer je verbinding en probeer het opnieuw."
+      }
+    }
+  },
+  "map": {
+    "title": "Kaart",
+    "entryMode": "Toegangsmodus",
+    "captureMode": "Veroveringsmodus",
+    "insideRadius": "Binnen bereik",
+    "outsideRadius": "Buiten bereik",
+    "distance": "Afstand",
+    "loading": "POI's laden...",
+    "noLocation": "Wachten op locatie...",
+    "timer": {
+      "capturing": "Bezig met veroveren...",
+      "completed": "Verovering voltooid!"
+    }
+  },
+  "profile": {
+    "title": "Profiel",
+    "signOut": "Uitloggen",
+    "confirmSignOut": {
+      "title": "Uitloggen",
+      "message": "Weet je zeker dat je wilt uitloggen?",
+      "cancel": "Annuleren",
+      "confirm": "Uitloggen"
+    },
+    "stats": {
+      "minutesCaptured": "Minuten Veroverd",
+      "poisClaimed": "POI's Geclaimd",
+      "currentlyKingOf": "Momenteel Koning Van"
+    },
+    "errors": {
+      "signOutFailed": "Fout"
+    },
+    "menu": {
+      "account": "Account",
+      "editProfile": "Profiel Bewerken",
+      "notifications": "Meldingen",
+      "notificationSettings": "Melding Instellingen",
+      "preferences": "Voorkeuren",
+      "support": "Ondersteuning & Info",
+      "rulesHelp": "Regels & Hulp",
+      "contact": "Contact Ondersteuning"
+    },
+    "edit": {
+      "username": "Gebruikersnaam",
+      "email": "E-mail",
+      "password": "Wachtwoord",
+      "usernamePlaceholder": "Voer gebruikersnaam in",
+      "emailHint": "E-mail kan niet worden gewijzigd",
+      "changeAvatar": "Tik om avatar te wijzigen",
+      "changePassword": {
+        "button": "Wachtwoord Wijzigen",
+        "title": "Wachtwoord Wijzigen",
+        "description": "We sturen je een e-mail met instructies om je wachtwoord opnieuw in te stellen.",
+        "send": "E-mail Versturen",
+        "emailSent": "Wachtwoord reset e-mail verzonden! Controleer je inbox."
+      },
+      "account": {
+        "title": "Account Informatie",
+        "memberSince": "Lid Sinds",
+        "accountType": "Account Type",
+        "premium": "Premium",
+        "free": "Gratis"
+      },
+      "location": {
+        "title": "Thuislocatie",
+        "country": "Land",
+        "city": "Thuisstad",
+        "countryHint": "Gebruikt voor land klassementen en lokale ranglijsten",
+        "cityHint": "Je stad bepaalt je lokale klassement",
+        "selectCountry": "Selecteer Land",
+        "selectCity": "Selecteer Stad",
+        "autoDetect": "Auto-detecteer via GPS",
+        "searchCountry": "Zoek landen...",
+        "searchCity": "Zoek steden...",
+        "playerCount_one": "{{count}} speler",
+        "playerCount_other": "{{count}} spelers",
+        "players": "spelers",
+        "popularCities": "Populaire steden in {{country}}",
+        "searchResults": "Zoekresultaten",
+        "noCitiesFound": "Geen steden gevonden. Probeer een andere zoekopdracht.",
+        "locationUpdated": "Locatie succesvol bijgewerkt!",
+        "updateLimit": "Je kunt je locatie maar {{times}} keer per week wijzigen",
+        "autoDetectFailed": "Kon je locatie niet detecteren. Schakel locatieservices in."
+      },
+      "dangerZone": {
+        "title": "Gevarenzone",
+        "deleteAccount": {
+          "button": "Account Verwijderen",
+          "title": "Account Verwijderen?",
+          "description": "Deze actie kan niet ongedaan worden gemaakt. Al je gegevens worden permanent verwijderd.",
+          "confirm": "Verwijderen"
+        }
+      },
+      "success": "Profiel succesvol bijgewerkt!",
+      "errors": {
+        "usernameRequired": "Gebruikersnaam is verplicht"
+      }
+    },
+    "settings": {
+      "notifications": {
+        "saved": "Melding instellingen opgeslagen!",
+        "sections": {
+          "game": "Spel Meldingen",
+          "social": "Sociaal",
+          "reminders": "Herinneringen"
+        },
+        "poiNearby": {
+          "title": "POI Dichtbij",
+          "description": "Krijg melding als je bij een te veroveren POI bent"
+        },
+        "captureComplete": {
+          "title": "Verovering Voltooid",
+          "description": "Melding wanneer je een verovering voltooit"
+        },
+        "kingStatus": {
+          "title": "Koning Status Gewijzigd",
+          "description": "Alert wanneer je Koning wordt of verliest"
+        },
+        "newChallenge": {
+          "title": "Nieuwe Uitdagingen",
+          "description": "Melding over nieuwe uitdagingen en evenementen"
+        },
+        "friendActivity": {
+          "title": "Vrienden Activiteit",
+          "description": "Updates over prestaties van je vrienden"
+        },
+        "leaderboard": {
+          "title": "Klassement Updates",
+          "description": "Melding wanneer je ranking verandert"
+        },
+        "dailyReminder": {
+          "title": "Dagelijkse Herinnering",
+          "description": "Dagelijkse herinnering om te verkennen en veroveren"
+        },
+        "weeklyReport": {
+          "title": "Wekelijks Rapport",
+          "description": "Wekelijkse samenvatting van je prestaties"
+        }
+      }
+    }
+  },
+  "rankings": {
+    "title": "Ranglijst",
+    "comingSoon": "Binnenkort...",
+    "leaderboard": "Klassement",
+    "rank": "Rang",
+    "player": "Speler",
+    "minutes": "Minuten",
+    "pois": "POI's",
+    "tabs": {
+      "world": "Wereld",
+      "country": "Land",
+      "city": "Stad",
+      "personal": "Persoonlijk"
+    },
+    "sortBy": {
+      "minutes": "Minuten",
+      "crowns": "Kronen"
+    },
+    "noData": "Nog Geen Ranglijst",
+    "noDataHint": "Begin met veroveren om op de ranglijst te verschijnen!",
+    "setCountryFirst": "Stel Je Land In",
+    "setCountryHint": "Ga naar Profiel → Profiel Bewerken om je land in te stellen",
+    "setCityFirst": "Stel Je Stad In",
+    "setCityHint": "Ga naar Profiel → Profiel Bewerken om je stad in te stellen"
+  },
+  "poi": {
+    "types": {
+      "park": "Park",
+      "museum": "Museum",
+      "historic": "Historisch",
+      "church": "Kerk",
+      "monument": "Monument",
+      "castle": "Kasteel",
+      "windmill": "Molen",
+      "other": "Overig"
+    }
+  },
+  "game": {
+    "rewards": {
+      "minuteBonus": "Minuut Bonus! +{{seconds}} seconden",
+      "sessionEnded": "Sessie beëindigd: +{{seconds}}s",
+      "totalCaptured": "Totaal veroverd: {{seconds}}s"
+    }
+  },
+  "notifications": {
+    "title": "Meldingen",
+    "unread": "{{count}} ongelezen",
+    "markAllRead": "Alles als gelezen markeren",
+    "empty": {
+      "title": "Geen Meldingen",
+      "message": "Je bent helemaal bij! Nieuwe meldingen verschijnen hier."
+    },
+    "types": {
+      "poiNearby": "POI Dichtbij",
+      "captureComplete": "Verovering Voltooid",
+      "kingStatus": "Koning Status",
+      "challenge": "Nieuwe Uitdaging",
+      "friend": "Vrienden Activiteit",
+      "leaderboard": "Klassement"
+    },
+    "messages": {
+      "poiNearby": "{{name}} is binnen bereik! Start nu met veroveren.",
+      "captureComplete": "Je hebt {{minutes}} minuten verdiend! Goed gedaan!",
+      "becameKing": "👑 Je bent nu de Koning van {{name}}!",
+      "lostKing": "Je hebt Koning status verloren bij {{name}}",
+      "leaderboardRank": "Je bent nu nummer #{{rank}} op het klassement!"
+    },
+    "time": {
+      "justNow": "Zojuist",
+      "minutesAgo": "{{count}}m geleden",
+      "hoursAgo": "{{count}}u geleden",
+      "daysAgo": "{{count}}d geleden"
+    }
+  },
+  "rules": {
+    "title": "Regels & Hulp",
+    "subtitle": "Leer hoe te spelen en word de Koning",
+    "quickStats": {
+      "entryTime": "Toegangstijd",
+      "maxCapture": "Max Verovering",
+      "bonus": "Minuut Bonus"
+    },
+    "sections": {
+      "howToPlay": {
+        "title": "Hoe Te Spelen",
+        "content": "Fealty is een locatiegebaseerd spel waarbij je je trouw bewijst aan plaatsen door er tijd door te brengen. Vind POI's op de kaart, loop hun straal binnen en begin met veroveren om beloningen te verdienen en Koning te worden!"
+      },
+      "captureMode": {
+        "title": "Veroveringsmodus",
+        "content": "Wanneer je de straal van een POI binnenkomt, zie je 10 seconden lang een gele voortgangsbalk (Toegangsmodus). Daarna start de timer en kun je tot 60 seconden veroveren. Hoe langer je blijft, hoe meer je verdient!"
+      },
+      "rewards": {
+        "title": "Beloningen & Bonussen",
+        "content": "Je verdient 1 seconde voor elke seconde die je verovert. Voltooi een hele minuut (60 seconden) om een +10 seconde bonus te krijgen! Je totale veroverde tijd telt mee voor het klassement en Koning status."
+      },
+      "kingStatus": {
+        "title": "Koning Status",
+        "content": "De speler met de meeste veroverde tijd bij een POI wordt de Koning! 👑 Je kunt tegelijkertijd Koning van meerdere POI's zijn. Blijf bezoeken om je kroon te verdedigen of daag anderen uit voor die van hen!"
+      },
+      "pois": {
+        "title": "Points of Interest",
+        "content": "POI's omvatten kastelen, musea, parken, kerken en monumenten. Elk heeft een straal van 37,6m. Verken je stad om nieuwe POI's te vinden en voeg ze toe aan je collectie!"
+      },
+      "community": {
+        "title": "Gemeenschap & Fair Play",
+        "content": "Speel eerlijk, respecteer andere spelers en geniet van het verkennen van je stad. Gebruik geen GPS-spoofing of cheattools. Meld eventuele problemen bij ons ondersteuningsteam."
+      }
+    },
+    "tips": {
+      "title": "Pro Tips",
+      "tip1": "Bezoek tijdens daluren om je kansen om Koning te worden te maximaliseren",
+      "tip2": "Voltooi de hele minuut om de +10 seconde bonus te krijgen",
+      "tip3": "Controleer regelmatig het klassement om je voortgang bij te houden"
+    },
+    "support": {
+      "title": "Hulp Nodig?",
+      "description": "Als je vragen hebt of problemen tegenkomt, staat ons ondersteuningsteam klaar om te helpen.",
+      "contact": "Contact Ondersteuning"
+    }
+  }
+}
+

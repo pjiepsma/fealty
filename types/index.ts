@@ -6,6 +6,8 @@ export interface POI {
   longitude: number;
   type: POIType;
   category: string;
+  city?: string;
+  country?: string;
   currentKing?: string;
   currentKingMinutes?: number;
   leaderboard?: LeaderboardEntry[];
@@ -52,6 +54,11 @@ export interface User {
   email: string;
   isPremium: boolean;
   createdAt: string;
+  home_country?: string;
+  home_city?: string;
+  home_city_lat?: number;
+  home_city_lng?: number;
+  location_updated_at?: string;
   stats: UserStats;
 }
 

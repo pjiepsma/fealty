@@ -1,7 +1,9 @@
 import React from 'react';
-import { ShapeSource, FillLayer, LineLayer } from '@rnmapbox/maps';
+import { View, StyleSheet } from 'react-native';
+import { PointAnnotation, Callout } from '@rnmapbox/maps';
 import { POI } from '@/types';
 import { POI_CATEGORIES } from '@/constants/config';
+import { POICallout } from './POICallout';
 import {
   generateCastleIcon,
   generateWindmillIcon,
@@ -42,44 +44,52 @@ function getIconGenerator(type: string) {
 }
 
 /**
- * POI Marker Component
- * Renders a single POI on the map with appropriate icon and colors
+ * Render POI Icon as a View component
  */
-export function POIMarker({ poi, size = 14 }: POIMarkerProps) {
-  const iconGenerator = getIconGenerator(poi.type);
-  const category = POI_CATEGORIES[poi.type as keyof typeof POI_CATEGORIES] || POI_CATEGORIES.other;
-
+function POIIcon({ type, size }: { type: string; size: number }) {
+  const category = POI_CATEGORIES[type as keyof typeof POI_CATEGORIES] || POI_CATEGORIES.other;
+  
   return (
-    <ShapeSource
-      key={poi.id}
-      id={`poi-${poi.id}`}
-      shape={{
-        type: 'Feature',
-        geometry: {
-          type: 'Polygon',
-          coordinates: [iconGenerator(poi.coordinates[0], poi.coordinates[1], size)],
+    <View
+      style={[
+        styles.iconContainer,
+        {
+          width: size,
+          height: size,
+          backgroundColor: category.color,
+          borderRadius: size / 2,
         },
-        properties: {
-          name: poi.name,
-          type: poi.type,
-          id: poi.id,
-        },
-      }}
-    >
-      <FillLayer
-        id={`poi-fill-${poi.id}`}
-        style={{
-          fillColor: category.color,
-        }}
-      />
-      <LineLayer
-        id={`poi-stroke-${poi.id}`}
-        style={{
-          lineColor: '#000000',
-          lineWidth: 2,
-        }}
-      />
-    </ShapeSource>
+      ]}
+    />
   );
 }
+
+/**
+ * POI Marker Component
+ * Renders a single POI on the map with appropriate icon, colors, and callout
+ */
+export function POIMarker({ poi, size = 20 }: POIMarkerProps) {
+  return (
+    <PointAnnotation
+      key={poi.id}
+      id={`poi-${poi.id}`}
+      coordinate={poi.coordinates}
+      onSelected={() => {
+        console.log('✅ POI Selected:', poi.name);
+      }}
+    >
+      <POIIcon type={poi.type} size={size} />
+      <Callout title={poi.name} containerStyle={{ backgroundColor: '#2a2a2a', padding: 0 }}>
+        <POICallout poiId={poi.id} poiName={poi.name} />
+      </Callout>
+    </PointAnnotation>
+  );
+}
+
+const styles = StyleSheet.create({
+  iconContainer: {
+    borderWidth: 2,
+    borderColor: '#000',
+  },
+});
 

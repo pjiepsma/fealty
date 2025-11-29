@@ -11,8 +11,11 @@ import {
 } from 'react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { router } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+import { parseSupabaseError, logError } from '@/utils/errorHandling';
 
 export default function SignUpScreen() {
+  const { t } = useTranslation();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -21,23 +24,36 @@ export default function SignUpScreen() {
 
   const handleSignUp = async () => {
     if (!username || !email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert(t('common.error'), t('auth.signup.errors.fillAllFields'));
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+      Alert.alert(t('common.error'), t('auth.signup.errors.passwordTooShort'));
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert(t('common.error'), t('auth.signup.errors.invalidEmail'));
       return;
     }
 
     setLoading(true);
     try {
       await signUp(email, password, username);
-      Alert.alert('Success', 'Account created! Please check your email to verify.', [
-        { text: 'OK', onPress: () => router.replace('/auth/login') },
-      ]);
+      Alert.alert(
+        t('auth.signup.success.title'),
+        t('auth.signup.success.message'),
+        [
+          { text: t('auth.signup.success.ok'), onPress: () => router.replace('/auth/login') },
+        ]
+      );
     } catch (error: any) {
-      Alert.alert('Sign Up Failed', error.message);
+      logError('SignUp', error);
+      const parsedError = parseSupabaseError(error, t);
+      Alert.alert(parsedError.title, parsedError.message);
     } finally {
       setLoading(false);
     }
@@ -49,12 +65,12 @@ export default function SignUpScreen() {
       style={styles.container}
     >
       <View style={styles.content}>
-        <Text style={styles.title}>Join Dictaat</Text>
-        <Text style={styles.subtitle}>Start claiming POIs today</Text>
+        <Text style={styles.title}>{t('auth.signup.title')}</Text>
+        <Text style={styles.subtitle}>{t('auth.signup.subtitle')}</Text>
 
         <TextInput
           style={styles.input}
-          placeholder="Username"
+          placeholder={t('auth.signup.username')}
           placeholderTextColor="#999"
           value={username}
           onChangeText={setUsername}
@@ -63,7 +79,7 @@ export default function SignUpScreen() {
 
         <TextInput
           style={styles.input}
-          placeholder="Email"
+          placeholder={t('auth.signup.email')}
           placeholderTextColor="#999"
           value={email}
           onChangeText={setEmail}
@@ -73,7 +89,7 @@ export default function SignUpScreen() {
 
         <TextInput
           style={styles.input}
-          placeholder="Password (min 6 characters)"
+          placeholder={t('auth.signup.password')}
           placeholderTextColor="#999"
           value={password}
           onChangeText={setPassword}
@@ -86,13 +102,13 @@ export default function SignUpScreen() {
           disabled={loading}
         >
           <Text style={styles.buttonText}>
-            {loading ? 'Creating account...' : 'Sign Up'}
+            {loading ? t('auth.signup.creatingAccount') : t('auth.signup.signupButton')}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.back()}>
           <Text style={styles.linkText}>
-            Already have an account? <Text style={styles.linkTextBold}>Login</Text>
+            {t('auth.signup.hasAccount')} <Text style={styles.linkTextBold}>{t('auth.signup.login')}</Text>
           </Text>
         </TouchableOpacity>
       </View>

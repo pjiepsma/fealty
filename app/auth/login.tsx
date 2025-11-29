@@ -11,8 +11,11 @@ import {
 } from 'react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { router } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+import { parseSupabaseError, logError } from '@/utils/errorHandling';
 
 export default function LoginScreen() {
+  const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -20,7 +23,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert(t('common.error'), t('auth.login.errors.fillAllFields'));
       return;
     }
 
@@ -29,7 +32,9 @@ export default function LoginScreen() {
       await signIn(email, password);
       router.replace('/(tabs)/map');
     } catch (error: any) {
-      Alert.alert('Login Failed', error.message);
+      logError('Login', error);
+      const parsedError = parseSupabaseError(error, t);
+      Alert.alert(parsedError.title, parsedError.message);
     } finally {
       setLoading(false);
     }
@@ -41,12 +46,12 @@ export default function LoginScreen() {
       style={styles.container}
     >
       <View style={styles.content}>
-        <Text style={styles.title}>Welcome to Dictaat</Text>
-        <Text style={styles.subtitle}>Claim your city, become King 👑</Text>
+        <Text style={styles.title}>{t('auth.login.title')}</Text>
+        <Text style={styles.subtitle}>{t('auth.login.subtitle')}</Text>
 
         <TextInput
           style={styles.input}
-          placeholder="Email"
+          placeholder={t('auth.login.email')}
           placeholderTextColor="#999"
           value={email}
           onChangeText={setEmail}
@@ -56,7 +61,7 @@ export default function LoginScreen() {
 
         <TextInput
           style={styles.input}
-          placeholder="Password"
+          placeholder={t('auth.login.password')}
           placeholderTextColor="#999"
           value={password}
           onChangeText={setPassword}
@@ -69,13 +74,13 @@ export default function LoginScreen() {
           disabled={loading}
         >
           <Text style={styles.buttonText}>
-            {loading ? 'Logging in...' : 'Login'}
+            {loading ? t('auth.login.loggingIn') : t('auth.login.loginButton')}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity onPress={() => router.push('/auth/signup')}>
           <Text style={styles.linkText}>
-            Don't have an account? <Text style={styles.linkTextBold}>Sign Up</Text>
+            {t('auth.login.noAccount')} <Text style={styles.linkTextBold}>{t('auth.login.signUp')}</Text>
           </Text>
         </TouchableOpacity>
       </View>

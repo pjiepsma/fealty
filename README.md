@@ -2,25 +2,37 @@
 
 **Show Fealty to Become King**
 
-Een location-based mobile game waarin spelers fysieke Points of Interest claimen door er **daadwerkelijk aanwezig te zijn**. Geen snelle drive-by's, maar echte bezoeken van minimaal 3 minuten. Toon loyaliteit aan je territorium, word King, en domineer je stad - maar wel door je stad écht te beleven!
+A location-based mobile game where players claim physical Points of Interest by **actually being present**. No quick drive-bys, but real visits with genuine dedication. Show loyalty to your territory, become King, and dominate your city!
+
+## 🎮 Core Game Mechanic
+
+### Entry Mode (10 seconds)
+Walk into a POI's radius → **Yellow progress arc** appears → Complete 10 seconds
+
+### Capture Mode (up to 60 seconds)
+Timer starts counting → Earn 1 second per second → **Bonus: +10 seconds for completing a full minute!**
+
+**Leave the radius?** Your captured time is saved for the leaderboard!
 
 ## 🚀 Features
 
-- **🎯 Anti-Drive-By Design** - **Geen snelle ritjes langs locaties** - je moet er minimaal 3 minuten blijven
-- **Real-time POI Claiming** - Claim locaties door er **daadwerkelijk aanwezig te zijn**
-- **Daily Limits** - Max 60 minuten per POI per dag (voorkomt camping, bevordert variatie)
-- **Category Kings** - Word King of the Kerken, Parken, Musea, etc.
-- **Monthly Seasons** - Elke maand reset met nieuwe kansen
-- **Lifetime Stats** - All-time records blijven behouden
-- **Dark Mode Maps** - Mooie Mapbox styling voor stedelijke verkenning
-- **Real-time Updates** - Zie instant wanneer iemand anders claimt
+- **🎯 Two-Phase Capture System** - Entry mode (10s) → Capture mode (60s max)
+- **⏱️ Real-time Timer** - Watch your captured seconds grow
+- **🎁 Minute Bonus** - Complete 60 seconds for +10 bonus seconds!
+- **🗺️ Real POI Data** - Fetches castles, windmills, museums, parks from OpenStreetMap
+- **📍 10km Discovery Radius** - Find POIs within 10km of your location
+- **🎨 Custom Polygon Icons** - Beautiful castle, windmill, and other icons
+- **🌙 Dark Mode Maps** - Stunning Mapbox styling
+- **🔐 Authentication** - Secure sign up/login with Supabase
+- **👤 User Profiles** - Track your stats and achievements
 
 ## 📱 Tech Stack
 
 - **Frontend**: React Native + Expo
-- **Maps**: Mapbox + OpenStreetMap data
-- **Backend**: Supabase (PostgreSQL + Real-time)
+- **Maps**: Mapbox GL + OpenStreetMap (Overpass API)
+- **Backend**: Supabase (PostgreSQL + Auth)
 - **Location**: Expo Location API
+- **Animations**: React Native Reanimated
 - **Authentication**: Supabase Auth
 
 ## 🛠️ Setup Instructions
@@ -29,25 +41,53 @@ Een location-based mobile game waarin spelers fysieke Points of Interest claimen
 
 ```bash
 # Install Node.js (v18+)
+node --version
+
 # Install Expo CLI
 npm install -g expo-cli
-
-# Install Git
 ```
 
 ### 2. Clone & Install
 
 ```bash
-# Run the setup script from the artifacts
-bash setup.sh
+git clone https://github.com/pjiepsma/fealty.git
+cd fealty
+npm install
+```
 
-# Or manually:
-npx create-expo-app@latest dictaat-app --template blank-typescript
-cd dictaat-app
-npm install @rnmapbox/maps expo-location @supabase/supabase-js
-npm install @react-navigation/native @react-navigation/bottom-tabs
-npm install react-native-screens react-native-safe-area-context
-npm install date-fns
+### 3. Configure Environment Variables
+
+Create a `.env` file (copy from `.env.example`):
+
+```env
+EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN=your_mapbox_token_here
+EXPO_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here
+```
+
+**Get Mapbox Token:** [https://account.mapbox.com/access-tokens/](https://account.mapbox.com/access-tokens/)
+**Get Supabase Keys:** See `AUTHENTICATION_SETUP.md` for detailed instructions
+
+### 4. Set Up Supabase Database
+
+1. Create a Supabase project at [https://supabase.com](https://supabase.com)
+2. Run the SQL from `database/schema.sql` in the Supabase SQL Editor
+3. Follow the complete guide in `AUTHENTICATION_SETUP.md`
+
+### 5. Run the App
+
+```bash
+# Start Expo development server
+npx expo start
+
+# Run on iOS simulator
+npx expo start --ios
+
+# Run on Android emulator
+npx expo start --android
+
+# Scan QR code with Expo Go app for physical device
+```
 ```
 
 ### 3. Get API Keys
