@@ -24,18 +24,13 @@ import { CLAIM_CONSTANTS, REWARD_SYSTEM } from '@/constants/config';
 import { usePOIs } from '@/hooks/usePOIs';
 import { POIMarker } from '@/components/map/POIMarker';
 import { POICallout } from '@/components/map/POICallout';
+import { POI } from '@/types';
 
 const { ENTRY_DURATION, CLAIM_RADIUS } = CLAIM_CONSTANTS;
 const { MINUTE_BONUS_SECONDS } = REWARD_SYSTEM;
 
 // Set Mapbox token
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN!);
-
-// Mock POI location (Amersfoort area)
-// Mock POI location (Amersfoort area)
-const MARKER_LAT = 52.1992252;
-const MARKER_LNG = 5.9272742;
-const RADIUS_METERS = CLAIM_RADIUS;
 
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
@@ -45,13 +40,16 @@ export default function MapScreen() {
   // STATE MANAGEMENT
   // ========================================
   
-  // Location & radius detection
-  const [isInsideRadius, setIsInsideRadius] = useState(false);
+  // Location tracking
   const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
-  const [distanceToMarker, setDistanceToMarker] = useState<number | null>(null);
   
   // Load nearby POIs from OpenStreetMap
   const { pois, isLoadingPOIs, error: poisError } = usePOIs(userLocation, 10000);
+  
+  // Active POI tracking (the POI user is currently inside)
+  const [activePOI, setActivePOI] = useState<POI | null>(null);
+  const [isInsideRadius, setIsInsideRadius] = useState(false);
+  const [distanceToActivePOI, setDistanceToActivePOI] = useState<number | null>(null);
   
   // Border animation (pulsing effect when inside radius)
   const borderAnimation = useRef(new Animated.Value(0)).current;
@@ -228,7 +226,7 @@ export default function MapScreen() {
 
 
 
-  // Track user location and check if inside radius
+  // Track user location and check distance to nearest POI
   useEffect(() => {
     let locationSubscription: Location.LocationSubscription | null = null;
 
@@ -247,15 +245,6 @@ export default function MapScreen() {
           accuracy: Location.Accuracy.BestForNavigation,
         });
         console.log('Initial location:', initialLocation.coords.latitude, initialLocation.coords.longitude);
-        
-        const initialDistance = calculateDistance(
-          initialLocation.coords.latitude,
-          initialLocation.coords.longitude,
-          MARKER_LAT,
-          MARKER_LNG
-        );
-        setDistanceToMarker(initialDistance);
-        setIsInsideRadius(initialDistance <= RADIUS_METERS);
         setUserLocation(initialLocation);
       } catch (error) {
         console.error('Error getting initial location:', error);
@@ -276,28 +265,6 @@ export default function MapScreen() {
           });
           
           setUserLocation(location);
-          
-          // Calculate distance
-          const distance = calculateDistance(
-            location.coords.latitude,
-            location.coords.longitude,
-            MARKER_LAT,
-            MARKER_LNG
-          );
-          
-          console.log(`Distance: ${distance.toFixed(2)}m, Radius: ${RADIUS_METERS}m`);
-          
-          setDistanceToMarker(distance);
-          
-          // Check if user is inside the radius
-          const inside = distance <= RADIUS_METERS;
-          
-          setIsInsideRadius((prev) => {
-            if (prev !== inside) {
-              console.log(`✅ Radius status changed: ${inside ? 'INSIDE' : 'OUTSIDE'}`);
-            }
-            return inside;
-          });
         }
       );
 
@@ -311,6 +278,47 @@ export default function MapScreen() {
       }
     };
   }, []);
+
+  // Check if user is inside radius of any POI
+  useEffect(() => {
+    if (!userLocation || pois.length === 0) return;
+
+    // Find nearest POI
+    let nearestPOI: POI | null = null;
+    let nearestDistance: number = Infinity;
+
+    for (const poi of pois) {
+      const distance = calculateDistance(
+        userLocation.coords.latitude,
+        userLocation.coords.longitude,
+        poi.latitude,
+        poi.longitude
+      );
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestPOI = poi;
+      }
+    }
+
+    if (nearestPOI && nearestDistance <= CLAIM_RADIUS) {
+      // Inside radius of nearest POI
+      if (activePOI?.id !== nearestPOI.id) {
+        console.log(`✅ Entered ${nearestPOI.name} (${nearestDistance.toFixed(1)}m)`);
+        setActivePOI(nearestPOI);
+        setIsInsideRadius(true);
+      }
+      setDistanceToActivePOI(nearestDistance);
+    } else {
+      // Outside all POI radii
+      if (isInsideRadius) {
+        console.log('❌ Left all POI radii');
+        setActivePOI(null);
+        setIsInsideRadius(false);
+        setDistanceToActivePOI(null);
+      }
+    }
+  }, [userLocation, pois, activePOI, isInsideRadius]);
   
   return (
     <SafeAreaView style={styles.container} edges={[]}>
@@ -365,14 +373,14 @@ export default function MapScreen() {
         />
         
         {/* Radius circle - only visible when inside */}
-        {isInsideRadius && (
+        {isInsideRadius && activePOI && (
           <ShapeSource
             id="radius-circle"
             shape={{
               type: 'Feature',
               geometry: {
                 type: 'Polygon',
-                coordinates: generateCirclePolygon(MARKER_LNG, MARKER_LAT, RADIUS_METERS),
+                coordinates: generateCirclePolygon(activePOI.longitude, activePOI.latitude, CLAIM_RADIUS),
               },
               properties: {},
             }}
@@ -394,14 +402,14 @@ export default function MapScreen() {
         )}
         
         {/* Entry arc - Phase 1 (yellow, 0-10 seconds) */}
-        {isInsideRadius && entryProgress > 0 && entryProgress < 1 && (
+        {isInsideRadius && activePOI && entryProgress > 0 && entryProgress < 1 && (
           <ShapeSource
             id="entry-arc"
             shape={{
               type: 'Feature',
               geometry: {
                 type: 'LineString',
-                coordinates: generateProgressArc(MARKER_LNG, MARKER_LAT, RADIUS_METERS, entryProgress),
+                coordinates: generateProgressArc(activePOI.longitude, activePOI.latitude, CLAIM_RADIUS, entryProgress),
               },
               properties: {},
             }}
@@ -424,27 +432,6 @@ export default function MapScreen() {
         {pois.map((poi) => (
           <POIMarker key={poi.id} poi={poi} size={14} />
         ))}
-        
-        {/* Mock POI Marker with Callout */}
-        <PointAnnotation
-          id="mock-poi"
-          coordinate={[MARKER_LNG, MARKER_LAT]}
-          onSelected={() => {
-            console.log('✅ Mock POI Selected');
-          }}
-        >
-          <View
-            style={{
-              width: 20,
-              height: 20,
-              backgroundColor: '#8B4513',
-              borderRadius: 10,
-              borderWidth: 2,
-              borderColor: '#000',
-            }}
-          />
-          <Callout title="Test Location" />
-        </PointAnnotation>
       </MapView>
       
       {/* Capture timer display - Phase 2 (shows when capturing) */}
@@ -457,13 +444,13 @@ export default function MapScreen() {
       )}
       
       {/* Status indicator */}
-      {userLocation && distanceToMarker !== null && (
+      {activePOI && distanceToActivePOI !== null && (
         <View style={[styles.statusIndicator, { bottom: insets.bottom + 20 }]}>
           <Text style={styles.statusText}>
-            {isInsideRadius ? `✅ Inside ${RADIUS_METERS}m radius` : `❌ Outside ${RADIUS_METERS}m radius`}
+            {isInsideRadius ? `✅ Inside ${activePOI.name}` : `❌ Outside ${activePOI.name}`}
           </Text>
           <Text style={[styles.statusText, { fontSize: 12, marginTop: 4, opacity: 0.8 }]}>
-            Distance: {distanceToMarker.toFixed(1)}m
+            Distance: {distanceToActivePOI.toFixed(1)}m / {CLAIM_RADIUS}m
           </Text>
         </View>
       )}
