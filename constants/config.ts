@@ -1,7 +1,7 @@
 // Core game mechanics
 export const CLAIM_CONSTANTS = {
   ENTRY_DURATION: 10, // seconds (entry mode duration before capture starts)
-  CLAIM_RADIUS: 50, // meters (detection radius around POI)
+  CLAIM_RADIUS: 220, // meters (detection radius around POI)
   MAX_CAPTURE_SECONDS: 60, // Maximum seconds per capture session
 };
 

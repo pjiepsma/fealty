@@ -57,10 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('users')
-        .select(`
-          *,
-          user_stats (*)
-        `)
+        .select('*')
         .eq('id', userId)
         .single();
 
@@ -71,14 +68,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         username: data.username,
         email: data.email,
         isPremium: data.is_premium,
+        totalSeconds: data.total_seconds || 0,
+        totalPOIsClaimed: data.total_pois_claimed || 0,
+        currentKingOf: data.current_king_of || 0,
+        longestStreak: data.longest_streak || 0,
+        currentStreak: data.current_streak || 0,
+        lastActive: data.last_active,
+        home_country: data.home_country,
+        home_city: data.home_city,
+        home_city_lat: data.home_city_lat,
+        home_city_lng: data.home_city_lng,
+        location_updated_at: data.location_updated_at,
+        location_update_count: data.location_update_count,
         createdAt: data.created_at,
-        stats: data.user_stats || {
-          totalMinutes: 0,
-          totalPOIsClaimed: 0,
-          currentKingOf: 0,
-          longestStreak: 0,
-          currentStreak: 0,
-        },
+        updatedAt: data.updated_at,
       });
     } catch (error) {
       console.error('Error fetching user profile:', error);

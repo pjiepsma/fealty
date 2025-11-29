@@ -68,17 +68,19 @@ export default function ProfileScreen() {
               {/* Stats Container */}
               <View style={styles.statsContainer}>
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{user.stats?.totalMinutes || 0}</Text>
+                  <Text style={styles.statValue}>
+                    {Math.floor((user.totalSeconds || 0) / 60)}m
+                  </Text>
                   <Text style={styles.statLabel}>{t('profile.stats.minutesCaptured')}</Text>
                 </View>
                 
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{user.stats?.totalPOIsClaimed || 0}</Text>
+                  <Text style={styles.statValue}>{user.totalPOIsClaimed || 0}</Text>
                   <Text style={styles.statLabel}>{t('profile.stats.poisClaimed')}</Text>
                 </View>
                 
                 <View style={styles.statItem}>
-                  <Text style={styles.statValue}>{user.stats?.currentKingOf || 0}</Text>
+                  <Text style={styles.statValue}>{user.currentKingOf || 0}</Text>
                   <Text style={styles.statLabel}>{t('profile.stats.currentlyKingOf')}</Text>
                 </View>
               </View>

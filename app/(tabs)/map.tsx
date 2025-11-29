@@ -25,6 +25,8 @@ import { usePOIs } from '@/hooks/usePOIs';
 import { POIMarker } from '@/components/map/POIMarker';
 import { POICallout } from '@/components/map/POICallout';
 import { POI } from '@/types';
+import { useAuth } from '@/hooks/useAuth';
+import { ClaimService } from '@/services/claim.service';
 
 const { ENTRY_DURATION, CLAIM_RADIUS } = CLAIM_CONSTANTS;
 const { MINUTE_BONUS_SECONDS } = REWARD_SYSTEM;
@@ -34,6 +36,7 @@ Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN!);
 
 export default function MapScreen() {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const [followMode, setFollowMode] = useState<UserTrackingMode>(UserTrackingMode.Follow);
   
   // ========================================
@@ -65,6 +68,7 @@ export default function MapScreen() {
   const [isCaptureActive, setIsCaptureActive] = useState(false);
   const [captureSeconds, setCaptureSeconds] = useState(0);
   const captureIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const captureStartTimeRef = useRef<Date | null>(null); // Track when capture started
   
   // Captured time tracking (for backend)
   const [totalCapturedSeconds, setTotalCapturedSeconds] = useState(0);
@@ -83,6 +87,28 @@ export default function MapScreen() {
         ? UserTrackingMode.FollowWithHeading 
         : UserTrackingMode.Follow
     );
+  };
+
+  // Save claim to Supabase
+  const saveClaimToDatabase = async (secondsEarned: number) => {
+    if (!user || !activePOI || !captureStartTimeRef.current) {
+      console.log('⚠️ Cannot save claim: missing user, POI, or start time');
+      return;
+    }
+
+    try {
+      const endTime = new Date();
+      await ClaimService.saveClaim(
+        user.id,
+        activePOI.id,
+        captureStartTimeRef.current,
+        endTime,
+        secondsEarned
+      );
+      console.log(`✅ Claim saved successfully: ${secondsEarned}s for ${activePOI.name}`);
+    } catch (error) {
+      console.error('❌ Failed to save claim:', error);
+    }
   };
 
   // ========================================
@@ -135,6 +161,9 @@ export default function MapScreen() {
     if (isCaptureActive && !captureIntervalRef.current) {
       console.log('🎯 CAPTURE MODE started');
       
+      // Record capture start time
+      captureStartTimeRef.current = new Date();
+      
       setCaptureSeconds(0);
       setSessionSeconds(0); // Reset session seconds
       
@@ -153,12 +182,13 @@ export default function MapScreen() {
           }
           
           // Update session seconds (real time + bonuses)
+          let finalSessionSeconds = 0;
           setSessionSeconds((prevSeconds) => {
-            const newSessionSeconds = prevSeconds + 1 + bonusSeconds;
+            finalSessionSeconds = prevSeconds + 1 + bonusSeconds;
             if (bonusSeconds > 0) {
-              console.log(`⏱️ Session: ${newSeconds}s captured = ${newSessionSeconds}s earned (${Math.floor(newSeconds / 60)} minute bonus)`);
+              console.log(`⏱️ Session: ${newSeconds}s captured = ${finalSessionSeconds}s earned (${Math.floor(newSeconds / 60)} minute bonus)`);
             }
-            return newSessionSeconds;
+            return finalSessionSeconds;
           });
           
           // Stop at 60 seconds (1 minute)
@@ -168,6 +198,13 @@ export default function MapScreen() {
               captureIntervalRef.current = null;
             }
             console.log('✅ CAPTURE complete at 1:00');
+            
+            // Save claim to database
+            saveClaimToDatabase(finalSessionSeconds);
+            
+            // Reset capture start time
+            captureStartTimeRef.current = null;
+            
             return 60;
           }
           
@@ -208,8 +245,10 @@ export default function MapScreen() {
     if (!isInsideRadius && isCaptureActive) {
       console.log('❌ Left radius during CAPTURE mode');
       
-      // Save the session seconds
+      // Save claim to database
       if (sessionSeconds > 0) {
+        saveClaimToDatabase(sessionSeconds);
+        
         setTotalCapturedSeconds((prev) => {
           const newTotal = prev + sessionSeconds;
           console.log(`💾 Session ended: +${sessionSeconds}s`);
@@ -217,6 +256,9 @@ export default function MapScreen() {
           return newTotal;
         });
       }
+      
+      // Reset capture start time
+      captureStartTimeRef.current = null;
       
       // Stop capture mode
       setIsCaptureActive(false);

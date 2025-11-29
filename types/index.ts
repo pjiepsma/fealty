@@ -35,17 +35,8 @@ export interface Claim {
   userId: string;
   startTime: string;
   endTime?: string;
-  minutesEarned: number;
+  minutesEarned: number; // Note: This actually stores seconds for now
   month: string; // YYYY-MM format
-}
-
-export interface ActiveSession {
-  id: string;
-  poiId: string;
-  userId: string;
-  startTime: string;
-  lastPing: string;
-  isActive: boolean;
 }
 
 export interface User {
@@ -53,30 +44,18 @@ export interface User {
   username: string;
   email: string;
   isPremium: boolean;
-  createdAt: string;
+  totalSeconds: number;
+  totalPOIsClaimed: number;
+  currentKingOf: number;
+  longestStreak: number;
+  currentStreak: number;
+  lastActive?: string;
   home_country?: string;
   home_city?: string;
   home_city_lat?: number;
   home_city_lng?: number;
   location_updated_at?: string;
-  stats: UserStats;
-}
-
-export interface UserStats {
-  totalMinutes: number;
-  totalPOIsClaimed: number;
-  currentKingOf: number;
-  longestStreak: number;
-  currentStreak: number;
-}
-
-export interface MonthlyLeaderboard {
-  month: string;
-  rankings: {
-    userId: string;
-    username: string;
-    totalMinutes: number;
-    poisClaimed: number;
-    kingCount: number;
-  }[];
+  location_update_count?: number;
+  createdAt: string;
+  updatedAt?: string;
 }

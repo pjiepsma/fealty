@@ -15,6 +15,18 @@ CREATE TABLE IF NOT EXISTS public.users (
   username TEXT UNIQUE NOT NULL,
   email TEXT UNIQUE NOT NULL,
   is_premium BOOLEAN DEFAULT FALSE,
+  total_seconds INTEGER DEFAULT 0,
+  total_pois_claimed INTEGER DEFAULT 0,
+  current_king_of INTEGER DEFAULT 0,
+  longest_streak INTEGER DEFAULT 0,
+  current_streak INTEGER DEFAULT 0,
+  last_active TIMESTAMPTZ,
+  home_country TEXT,
+  home_city TEXT,
+  home_city_lat DOUBLE PRECISION,
+  home_city_lng DOUBLE PRECISION,
+  location_updated_at TIMESTAMPTZ,
+  location_update_count INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -48,7 +60,7 @@ CREATE TABLE IF NOT EXISTS public.claims (
   poi_id TEXT NOT NULL REFERENCES public.pois(id) ON DELETE CASCADE,
   start_time TIMESTAMPTZ NOT NULL,
   end_time TIMESTAMPTZ,
-  minutes_earned INTEGER NOT NULL CHECK (minutes_earned >= 5 AND minutes_earned <= 60),
+  seconds_earned INTEGER NOT NULL CHECK (seconds_earned > 0),
   month TEXT NOT NULL, -- Format: YYYY-MM
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -60,57 +72,17 @@ CREATE INDEX IF NOT EXISTS claims_month_idx ON public.claims(month);
 CREATE INDEX IF NOT EXISTS claims_user_poi_month_idx ON public.claims(user_id, poi_id, month);
 
 -- ==================================
--- ACTIVE SESSIONS TABLE
+-- ACTIVE SESSIONS TABLE (REMOVED - Not used)
 -- ==================================
-
-CREATE TABLE IF NOT EXISTS public.active_sessions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  poi_id TEXT NOT NULL REFERENCES public.pois(id) ON DELETE CASCADE,
-  start_time TIMESTAMPTZ NOT NULL,
-  last_ping TIMESTAMPTZ NOT NULL,
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Ensure one active session per user
-CREATE UNIQUE INDEX IF NOT EXISTS active_sessions_user_active_idx
-  ON public.active_sessions(user_id)
-  WHERE is_active = TRUE;
+-- This table was removed as we now use direct claim submission
 
 -- ==================================
--- USER STATS TABLE (Cached aggregations)
+-- USER STATS (REMOVED - Merged into users table)
 -- ==================================
 
-CREATE TABLE IF NOT EXISTS public.user_stats (
-  user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
-  total_minutes INTEGER DEFAULT 0,
-  total_pois_claimed INTEGER DEFAULT 0,
-  current_king_of INTEGER DEFAULT 0,
-  longest_streak INTEGER DEFAULT 0,
-  current_streak INTEGER DEFAULT 0,
-  last_active TIMESTAMPTZ,
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
 -- ==================================
--- MONTHLY LEADERBOARD TABLE (Materialized)
+-- MONTHLY LEADERBOARD (REMOVED - Query claims directly)
 -- ==================================
-
-CREATE TABLE IF NOT EXISTS public.monthly_leaderboard (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  month TEXT NOT NULL,
-  total_minutes INTEGER DEFAULT 0,
-  pois_claimed INTEGER DEFAULT 0,
-  king_count INTEGER DEFAULT 0,
-  rank INTEGER,
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(user_id, month)
-);
-
-CREATE INDEX IF NOT EXISTS monthly_leaderboard_month_idx ON public.monthly_leaderboard(month);
-CREATE INDEX IF NOT EXISTS monthly_leaderboard_rank_idx ON public.monthly_leaderboard(month, rank);
 
 -- ==================================
 -- FUNCTIONS
@@ -170,8 +142,8 @@ BEGIN
   SELECT
     c.user_id,
     u.username,
-    SUM(c.minutes_earned)::INTEGER as minutes,
-    RANK() OVER (ORDER BY SUM(c.minutes_earned) DESC)::INTEGER as rank
+    SUM(c.seconds_earned)::INTEGER as seconds,
+    RANK() OVER (ORDER BY SUM(c.seconds_earned) DESC)::INTEGER as rank
   FROM public.claims c
   JOIN public.users u ON c.user_id = u.id
   WHERE c.poi_id = poi_id_param
@@ -183,22 +155,26 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Function to update user stats (called after claim)
-CREATE OR REPLACE FUNCTION update_user_stats(user_id_param UUID)
-RETURNS VOID AS $$
+CREATE OR REPLACE FUNCTION trigger_update_user_stats()
+RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.user_stats (user_id, total_minutes, total_pois_claimed, last_active)
-  SELECT
-    user_id_param,
-    COALESCE(SUM(minutes_earned), 0),
-    COUNT(DISTINCT poi_id),
-    NOW()
-  FROM public.claims
-  WHERE user_id = user_id_param
-  ON CONFLICT (user_id) DO UPDATE SET
-    total_minutes = EXCLUDED.total_minutes,
-    total_pois_claimed = EXCLUDED.total_pois_claimed,
-    last_active = EXCLUDED.last_active,
-    updated_at = NOW();
+  UPDATE public.users
+  SET 
+    total_seconds = (
+      SELECT COALESCE(SUM(seconds_earned), 0)
+      FROM public.claims
+      WHERE user_id = NEW.user_id
+    ),
+    total_pois_claimed = (
+      SELECT COUNT(DISTINCT poi_id)
+      FROM public.claims
+      WHERE user_id = NEW.user_id
+    ),
+    last_active = NOW(),
+    updated_at = NOW()
+  WHERE id = NEW.user_id;
+  
+  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -207,58 +183,10 @@ $$ LANGUAGE plpgsql;
 -- ==================================
 
 -- Trigger to update user stats after claim
-CREATE OR REPLACE FUNCTION trigger_update_user_stats()
-RETURNS TRIGGER AS $$
-BEGIN
-  PERFORM update_user_stats(NEW.user_id);
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
 CREATE TRIGGER after_claim_insert
   AFTER INSERT ON public.claims
   FOR EACH ROW
   EXECUTE FUNCTION trigger_update_user_stats();
-
--- Trigger to update monthly leaderboard
-CREATE OR REPLACE FUNCTION trigger_update_monthly_leaderboard()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.monthly_leaderboard (user_id, month, total_minutes, pois_claimed)
-  SELECT
-    NEW.user_id,
-    NEW.month,
-    SUM(minutes_earned),
-    COUNT(DISTINCT poi_id)
-  FROM public.claims
-  WHERE user_id = NEW.user_id AND month = NEW.month
-  GROUP BY user_id, month
-  ON CONFLICT (user_id, month) DO UPDATE SET
-    total_minutes = EXCLUDED.total_minutes,
-    pois_claimed = EXCLUDED.pois_claimed,
-    updated_at = NOW();
-
-  -- Update ranks
-  UPDATE public.monthly_leaderboard
-  SET rank = subquery.new_rank
-  FROM (
-    SELECT
-      user_id,
-      RANK() OVER (ORDER BY total_minutes DESC) as new_rank
-    FROM public.monthly_leaderboard
-    WHERE month = NEW.month
-  ) AS subquery
-  WHERE monthly_leaderboard.user_id = subquery.user_id
-    AND monthly_leaderboard.month = NEW.month;
-
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER after_claim_insert_leaderboard
-  AFTER INSERT ON public.claims
-  FOR EACH ROW
-  EXECUTE FUNCTION trigger_update_monthly_leaderboard();
 
 -- ==================================
 -- ROW LEVEL SECURITY (RLS)
@@ -268,9 +196,6 @@ CREATE TRIGGER after_claim_insert_leaderboard
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pois ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.claims ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.active_sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_stats ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.monthly_leaderboard ENABLE ROW LEVEL SECURITY;
 
 -- Users: users can read all, insert their own during signup, update only their own
 CREATE POLICY "Users are viewable by everyone" ON public.users
@@ -296,23 +221,6 @@ CREATE POLICY "Claims are viewable by everyone" ON public.claims
 CREATE POLICY "Users can create their own claims" ON public.claims
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
--- Active sessions: users can manage their own
-CREATE POLICY "Users can view their own sessions" ON public.active_sessions
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can create their own sessions" ON public.active_sessions
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update their own sessions" ON public.active_sessions
-  FOR UPDATE USING (auth.uid() = user_id);
-
--- Stats and leaderboards: readable by all
-CREATE POLICY "Stats are viewable by everyone" ON public.user_stats
-  FOR SELECT USING (true);
-
-CREATE POLICY "Leaderboards are viewable by everyone" ON public.monthly_leaderboard
-  FOR SELECT USING (true);
-
 -- ==================================
 -- INDEXES FOR PERFORMANCE
 -- ==================================
@@ -320,10 +228,6 @@ CREATE POLICY "Leaderboards are viewable by everyone" ON public.monthly_leaderbo
 -- Composite index for common queries
 CREATE INDEX IF NOT EXISTS claims_user_month_poi_idx
   ON public.claims(user_id, month, poi_id);
-
--- Index for leaderboard queries
-CREATE INDEX IF NOT EXISTS monthly_leaderboard_month_minutes_idx
-  ON public.monthly_leaderboard(month, total_minutes DESC);
 
 -- ==================================
 -- SAMPLE DATA (Optional - for testing)
@@ -345,28 +249,6 @@ VALUES (
 -- MAINTENANCE FUNCTIONS
 -- ==================================
 
--- Function to clean up old inactive sessions (run daily)
-CREATE OR REPLACE FUNCTION cleanup_inactive_sessions()
-RETURNS INTEGER AS $$
-DECLARE
-  deleted_count INTEGER;
-BEGIN
-  DELETE FROM public.active_sessions
-  WHERE is_active = FALSE
-    AND created_at < NOW() - INTERVAL '7 days';
-
-  GET DIAGNOSTICS deleted_count = ROW_COUNT;
-  RETURN deleted_count;
-END;
-$$ LANGUAGE plpgsql;
-
--- Function to reset monthly leaderboard (run on 1st of month)
-CREATE OR REPLACE FUNCTION reset_monthly_leaderboard()
-RETURNS VOID AS $$
-BEGIN
-  -- Archive previous month's data is already in claims table
-  -- Just clear current rankings to start fresh
-  UPDATE public.user_stats
-  SET current_king_of = 0;
-END;
-$$ LANGUAGE plpgsql;
+-- ==================================
+-- UTILITY FUNCTIONS (REMOVED - No longer needed)
+-- ==================================
