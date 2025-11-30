@@ -10,6 +10,8 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, username: string) => Promise<void>;
   signOut: () => Promise<void>;
+  updateUser: (updates: { username?: string }) => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -19,6 +21,8 @@ const AuthContext = createContext<AuthContextType>({
   signIn: async () => {},
   signUp: async () => {},
   signOut: async () => {},
+  updateUser: async () => {},
+  refreshUser: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -128,8 +132,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
   };
 
+  const updateUser = async (updates: { username?: string }) => {
+    if (!session?.user) {
+      throw new Error('No user session');
+    }
+
+    const { error } = await supabase
+      .from('users')
+      .update({
+        username: updates.username,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', session.user.id);
+
+    if (error) throw error;
+
+    // Refresh user data
+    await fetchUserProfile(session.user.id);
+  };
+
+  const refreshUser = async () => {
+    if (session?.user) {
+      await fetchUserProfile(session.user.id);
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, signIn, signUp, signOut, updateUser, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

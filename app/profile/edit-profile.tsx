@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ScrollView, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -8,11 +8,19 @@ import { Ionicons } from '@expo/vector-icons';
 
 export default function EditProfileScreen() {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   
   const [username, setUsername] = useState(user?.username || '');
   const [email, setEmail] = useState(user?.email || '');
   const [loading, setLoading] = useState(false);
+
+  // Update form fields when user data changes
+  useEffect(() => {
+    if (user) {
+      setUsername(user.username || '');
+      setEmail(user.email || '');
+    }
+  }, [user]);
 
   const handleSave = async () => {
     if (!username.trim()) {
@@ -20,16 +28,22 @@ export default function EditProfileScreen() {
       return;
     }
 
+    // Check if username actually changed
+    if (username === user?.username) {
+      router.back();
+      return;
+    }
+
     setLoading(true);
     try {
-      // TODO: Update user profile in Supabase
+      await updateUser({ username: username.trim() });
       Alert.alert(
         t('common.success'),
         t('profile.edit.success'),
         [{ text: t('common.confirm'), onPress: () => router.back() }]
       );
     } catch (error: any) {
-      Alert.alert(t('common.error'), error.message);
+      Alert.alert(t('common.error'), error.message || t('profile.edit.errors.updateFailed'));
     } finally {
       setLoading(false);
     }
