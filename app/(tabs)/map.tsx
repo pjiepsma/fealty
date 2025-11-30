@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, TouchableOpacity, Text, Animated } from 'react-native';
+import { StyleSheet, TouchableOpacity, Text, Animated, Alert } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -73,6 +73,7 @@ export default function MapScreen() {
   // Captured time tracking (for backend)
   const [totalCapturedSeconds, setTotalCapturedSeconds] = useState(0);
   const [sessionSeconds, setSessionSeconds] = useState(0); // Seconds in current capture session (includes bonuses)
+  const [dailySecondsForActivePOI, setDailySecondsForActivePOI] = useState(0); // Seconds already claimed today at active POI
   
   // ========================================
   // FLOW OVERVIEW:
@@ -101,13 +102,39 @@ export default function MapScreen() {
       await ClaimService.saveClaim(
         user.id,
         activePOI.id,
+        activePOI, // Pass full POI object
         captureStartTimeRef.current,
         endTime,
         secondsEarned
       );
       console.log(`✅ Claim saved successfully: ${secondsEarned}s for ${activePOI.name}`);
-    } catch (error) {
+      
+      // Show success message
+      Alert.alert(
+        '🎉 Claim Saved!',
+        `You earned ${secondsEarned} seconds at ${activePOI.name}`,
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
       console.error('❌ Failed to save claim:', error);
+      
+      // Parse error message
+      let userMessage = 'Failed to save your claim. Please try again.';
+      
+      if (error.message?.includes('Daily limit reached')) {
+        userMessage = `You've reached the daily limit (60 seconds) for ${activePOI.name}.\n\nCome back tomorrow!`;
+      } else if (error.message?.includes('foreign key')) {
+        userMessage = 'This location could not be saved. Please try again.';
+      } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+        userMessage = 'Network error. Please check your connection and try again.';
+      }
+      
+      // Show error to user
+      Alert.alert(
+        '❌ Claim Failed',
+        userMessage,
+        [{ text: 'OK' }]
+      );
     }
   };
 
@@ -130,10 +157,36 @@ export default function MapScreen() {
         if (progress < 1) {
           entryAnimationRef.current = requestAnimationFrame(animate);
         } else {
-          // Entry complete → start capture mode
+          // Entry complete → fetch daily seconds then start capture mode
           console.log('✅ ENTRY complete → Starting CAPTURE mode');
           setEntryProgress(1);
-          setIsCaptureActive(true);
+          
+          // Fetch how many seconds user already claimed today at this POI
+          if (user && activePOI) {
+            ClaimService.getDailySecondsForPOI(user.id, activePOI.id).then((seconds) => {
+              console.log(`📊 Already claimed ${seconds}s today at this POI`);
+              setDailySecondsForActivePOI(seconds);
+              
+              if (seconds >= 60) {
+                console.log('⚠️ Daily limit reached (60s) - cannot capture more');
+                
+                // Show alert to user
+                Alert.alert(
+                  '✅ Daily Limit Reached',
+                  `You've already claimed 60 seconds at ${activePOI.name} today.\n\nCome back tomorrow to earn more!`,
+                  [{ text: 'OK' }]
+                );
+                
+                // Don't start capture mode
+              } else {
+                setIsCaptureActive(true);
+                console.log(`🎯 You have ${60 - seconds}s remaining today`);
+              }
+            });
+          } else {
+            setIsCaptureActive(true);
+          }
+          
           entryAnimationRef.current = null;
         }
       };
@@ -164,8 +217,11 @@ export default function MapScreen() {
       // Record capture start time
       captureStartTimeRef.current = new Date();
       
-      setCaptureSeconds(0);
-      setSessionSeconds(0); // Reset session seconds
+      // Start timer from daily seconds already claimed
+      setCaptureSeconds(dailySecondsForActivePOI);
+      setSessionSeconds(0); // Reset session seconds (new seconds in THIS session)
+      
+      console.log(`🎯 CAPTURE MODE started (continuing from ${dailySecondsForActivePOI}s)`);
       
       // Start capture timer (updates every second)
       captureIntervalRef.current = setInterval(() => {
@@ -182,31 +238,29 @@ export default function MapScreen() {
           }
           
           // Update session seconds (real time + bonuses)
-          let finalSessionSeconds = 0;
           setSessionSeconds((prevSeconds) => {
-            finalSessionSeconds = prevSeconds + 1 + bonusSeconds;
+            const newSessionSeconds = prevSeconds + 1 + bonusSeconds;
             if (bonusSeconds > 0) {
-              console.log(`⏱️ Session: ${newSeconds}s captured = ${finalSessionSeconds}s earned (${Math.floor(newSeconds / 60)} minute bonus)`);
+              console.log(`⏱️ Session: ${newSeconds}s captured = ${newSessionSeconds}s earned (${Math.floor(newSeconds / 60)} minute bonus)`);
             }
-            return finalSessionSeconds;
+            
+            // Stop at 60 seconds (1 minute)
+            if (newSeconds >= 60) {
+              if (captureIntervalRef.current) {
+                clearInterval(captureIntervalRef.current);
+                captureIntervalRef.current = null;
+              }
+              console.log('✅ CAPTURE complete at 1:00');
+              
+              // Save claim to database with the calculated session seconds
+              saveClaimToDatabase(newSessionSeconds);
+              
+              // Reset capture start time
+              captureStartTimeRef.current = null;
+            }
+            
+            return newSessionSeconds;
           });
-          
-          // Stop at 60 seconds (1 minute)
-          if (newSeconds >= 60) {
-            if (captureIntervalRef.current) {
-              clearInterval(captureIntervalRef.current);
-              captureIntervalRef.current = null;
-            }
-            console.log('✅ CAPTURE complete at 1:00');
-            
-            // Save claim to database
-            saveClaimToDatabase(finalSessionSeconds);
-            
-            // Reset capture start time
-            captureStartTimeRef.current = null;
-            
-            return 60;
-          }
           
           return newSeconds;
         });
@@ -228,6 +282,7 @@ export default function MapScreen() {
       captureIntervalRef.current = null;
       setCaptureSeconds(0);
       setSessionSeconds(0);
+      setDailySecondsForActivePOI(0);
     }
     
     return () => {

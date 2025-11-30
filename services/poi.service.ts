@@ -85,10 +85,18 @@ export class POIService {
       return existingPOI;
     }
 
-    // Create new POI
+    // Create new POI - map to database column names
     const { data: newPOI, error: createError } = await supabase
       .from('pois')
-      .insert([poiData])
+      .insert([{
+        id: poiData.id,
+        name: poiData.name,
+        latitude: poiData.latitude,
+        longitude: poiData.longitude,
+        type: poiData.type,
+        category: poiData.category,
+        coordinates: `POINT(${poiData.longitude} ${poiData.latitude})`, // PostGIS format
+      }])
       .select()
       .single();
 

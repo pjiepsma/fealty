@@ -1,32 +1,81 @@
 import { Claim } from '@/types';
 import { supabase } from './supabase';
 import { getCurrentMonth } from '@/utils/date';
+import { POIService } from './poi.service';
 
 export class ClaimService {
+  // Check if user has already completed their daily claim for this POI
+  static async getDailySecondsForPOI(userId: string, poiId: string): Promise<number> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const { data, error } = await supabase
+      .from('claims')
+      .select('seconds_earned')
+      .eq('user_id', userId)
+      .eq('poi_id', poiId)
+      .gte('start_time', today.toISOString());
+
+    if (error) {
+      console.error('Error checking daily seconds:', error);
+      return 0;
+    }
+
+    // Sum up all seconds earned today at this POI
+    return data?.reduce((sum, claim) => sum + claim.seconds_earned, 0) || 0;
+  }
+
   // Save a claim directly
   static async saveClaim(
     userId: string,
     poiId: string,
+    poiData: any, // Full POI object to ensure it exists in DB
     startTime: Date,
     endTime: Date,
     secondsEarned: number
   ): Promise<Claim> {
+    // Check daily limit (60 seconds max per POI per day)
+    const dailySeconds = await this.getDailySecondsForPOI(userId, poiId);
+    const remainingSeconds = 60 - dailySeconds;
+
+    if (remainingSeconds <= 0) {
+      throw new Error('Daily limit reached for this POI (60 seconds max)');
+    }
+
+    // Cap the seconds to the remaining allowed amount
+    const cappedSeconds = Math.min(secondsEarned, remainingSeconds);
+    
+    if (cappedSeconds < secondsEarned) {
+      console.log(`⚠️ Capping claim: ${secondsEarned}s → ${cappedSeconds}s (${dailySeconds}s already claimed today)`);
+    }
+
+    // Ensure POI exists in database first
+    try {
+      await POIService.getOrCreatePOI(poiData);
+    } catch (error) {
+      console.error('Failed to create POI:', error);
+      // Continue anyway - the POI might already exist
+    }
+
+    const payload = {
+      user_id: userId,
+      poi_id: poiId,
+      start_time: startTime.toISOString(),
+      end_time: endTime.toISOString(),
+      seconds_earned: cappedSeconds, // Use capped seconds
+      month: getCurrentMonth(),
+    };
+
+    console.log('💾 Saving claim:', JSON.stringify(payload, null, 2));
+
     const { data: claim, error } = await supabase
       .from('claims')
-      .insert([
-        {
-          user_id: userId,
-          poi_id: poiId,
-          start_time: startTime.toISOString(),
-          end_time: endTime.toISOString(),
-          seconds_earned: secondsEarned,
-          month: getCurrentMonth(),
-        },
-      ])
+      .insert([payload])
       .select()
       .single();
 
     if (error) {
+      console.error('❌ Supabase error details:', JSON.stringify(error, null, 2));
       throw new Error(`Failed to save claim: ${error.message}`);
     }
 
