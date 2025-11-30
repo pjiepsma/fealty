@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, TouchableOpacity, Text, Animated, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Alert, View, Text } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import Mapbox, {
   MapView,
@@ -10,26 +9,20 @@ import Mapbox, {
   LocationPuck,
   Images,
   Image,
-  PointAnnotation,
-  ShapeSource,
-  FillLayer,
-  LineLayer,
-  SymbolLayer,
-  Callout,
 } from '@rnmapbox/maps';
-import { View } from 'react-native';
 import { calculateDistance } from '@/utils/distance';
-import { generateCirclePolygon, generateProgressArc, generateCastleIcon } from '@/utils/mapIcons';
-import { CLAIM_CONSTANTS, REWARD_SYSTEM } from '@/constants/config';
+import { CLAIM_CONSTANTS } from '@/constants/config';
+
+const { CLAIM_RADIUS } = CLAIM_CONSTANTS;
 import { usePOIs } from '@/hooks/usePOIs';
+import { useGameMechanics } from '@/hooks/useGameMechanics';
 import { POIMarker } from '@/components/map/POIMarker';
-import { POICallout } from '@/components/map/POICallout';
+import { MapControls } from '@/components/map/MapControls';
+import { CaptureTimer } from '@/components/map/CaptureTimer';
+import { RadiusCircle } from '@/components/map/RadiusCircle';
 import { POI } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { ClaimService } from '@/services/claim.service';
-
-const { ENTRY_DURATION, CLAIM_RADIUS } = CLAIM_CONSTANTS;
-const { MINUTE_BONUS_SECONDS } = REWARD_SYSTEM;
 
 // Set Mapbox token
 Mapbox.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN!);
@@ -40,59 +33,127 @@ export default function MapScreen() {
   const [followMode, setFollowMode] = useState<UserTrackingMode>(UserTrackingMode.Follow);
   
   // ========================================
-  // STATE MANAGEMENT
+  // LOCATION & POI TRACKING
   // ========================================
-  
-  // Location tracking
   const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
+  const { pois } = usePOIs(userLocation, 10000);
   
-  // Load nearby POIs from OpenStreetMap
-  const { pois, isLoadingPOIs, error: poisError } = usePOIs(userLocation, 10000);
-  
-  // Active POI tracking (the POI user is currently inside)
+  // Active POI tracking
   const [activePOI, setActivePOI] = useState<POI | null>(null);
   const [isInsideRadius, setIsInsideRadius] = useState(false);
   const [distanceToActivePOI, setDistanceToActivePOI] = useState<number | null>(null);
   
-  // Border animation (pulsing effect when inside radius)
-  const borderAnimation = useRef(new Animated.Value(0)).current;
-  const [animatedBorderWidth, setAnimatedBorderWidth] = useState(2);
-  
-  // Phase 1: ENTRY MODE (0-10 seconds)
-  // Yellow progress bar when user enters radius
-  const [entryProgress, setEntryProgress] = useState(0); // 0 to 1
-  const entryAnimationRef = useRef<number | null>(null);
-  
-  // Phase 2: CAPTURE MODE (starts after entry completes)
-  // Counts up from 0:00 to 1:00 (60 seconds max)
-  const [isCaptureActive, setIsCaptureActive] = useState(false);
-  const [captureSeconds, setCaptureSeconds] = useState(0);
-  const captureIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const captureStartTimeRef = useRef<Date | null>(null); // Track when capture started
-  
-  // Captured time tracking (for backend)
-  const [totalCapturedSeconds, setTotalCapturedSeconds] = useState(0);
-  const [sessionSeconds, setSessionSeconds] = useState(0); // Seconds in current capture session (includes bonuses)
-  const [dailySecondsForActivePOI, setDailySecondsForActivePOI] = useState(0); // Seconds already claimed today at active POI
-  
   // ========================================
-  // FLOW OVERVIEW:
-  // 1. User enters radius → ENTRY MODE starts (10 seconds, yellow arc)
-  // 2. Entry completes → CAPTURE MODE starts (timer 0:00 to 1:00)
-  // 3. User leaves radius → Everything resets
+  // GAME MECHANICS
   // ========================================
-  
-  const toggleFollowMode = () => {
-    setFollowMode((current) => 
-      current === UserTrackingMode.Follow 
-        ? UserTrackingMode.FollowWithHeading 
-        : UserTrackingMode.Follow
-    );
-  };
+  const {
+    entryProgress,
+    isCaptureActive,
+    captureSeconds,
+    sessionSeconds,
+    captureStartTime,
+  } = useGameMechanics({
+    isInsideRadius,
+    activePOI,
+    userId: user?.id,
+  });
 
-  // Save claim to Supabase
+  // ========================================
+  // LOCATION TRACKING
+  // ========================================
+  useEffect(() => {
+    let locationSubscription: Location.LocationSubscription | null = null;
+
+    const startTracking = async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        console.error('Location permission denied');
+        return;
+      }
+
+      // Get initial location
+      const initialLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      setUserLocation(initialLocation);
+      console.log('Initial location:', initialLocation.coords);
+
+      // Watch location updates
+      locationSubscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 1000,
+          distanceInterval: 1,
+        },
+        (location) => {
+          setUserLocation(location);
+        }
+      );
+    };
+
+    startTracking();
+
+    return () => {
+      if (locationSubscription) {
+        locationSubscription.remove();
+      }
+    };
+  }, []);
+
+  // ========================================
+  // POI DISTANCE CALCULATION
+  // ========================================
+  useEffect(() => {
+    if (!userLocation || pois.length === 0) {
+      setActivePOI(null);
+      setIsInsideRadius(false);
+      setDistanceToActivePOI(null);
+      return;
+    }
+
+    // Find nearest POI
+    let nearestPOI: POI | null = null;
+    let minDistance = Infinity;
+
+    pois.forEach((poi) => {
+      const distance = calculateDistance(
+        userLocation.coords.latitude,
+        userLocation.coords.longitude,
+        poi.latitude,
+        poi.longitude
+      );
+
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestPOI = poi;
+      }
+    });
+
+    if (nearestPOI && minDistance <= CLAIM_RADIUS) {
+      setActivePOI(nearestPOI);
+      setIsInsideRadius(true);
+      setDistanceToActivePOI(minDistance);
+    } else {
+      setActivePOI(null);
+      setIsInsideRadius(false);
+      setDistanceToActivePOI(null);
+    }
+  }, [userLocation, pois]);
+
+  // ========================================
+  // SAVE CLAIM WHEN COMPLETE
+  // ========================================
+  useEffect(() => {
+    if (captureSeconds >= 60 && sessionSeconds > 0 && activePOI && captureStartTime) {
+      saveClaimToDatabase(sessionSeconds);
+    }
+  }, [captureSeconds, sessionSeconds, activePOI, captureStartTime]);
+
+  // ========================================
+  // SAVE CLAIM TO DATABASE
+  // ========================================
   const saveClaimToDatabase = async (secondsEarned: number) => {
-    if (!user || !activePOI || !captureStartTimeRef.current) {
+    if (!user || !activePOI || !captureStartTime) {
       console.log('⚠️ Cannot save claim: missing user, POI, or start time');
       return;
     }
@@ -102,14 +163,13 @@ export default function MapScreen() {
       await ClaimService.saveClaim(
         user.id,
         activePOI.id,
-        activePOI, // Pass full POI object
-        captureStartTimeRef.current,
+        activePOI,
+        captureStartTime,
         endTime,
         secondsEarned
       );
       console.log(`✅ Claim saved successfully: ${secondsEarned}s for ${activePOI.name}`);
       
-      // Show success message
       Alert.alert(
         '🎉 Claim Saved!',
         `You earned ${secondsEarned} seconds at ${activePOI.name}`,
@@ -118,7 +178,6 @@ export default function MapScreen() {
     } catch (error: any) {
       console.error('❌ Failed to save claim:', error);
       
-      // Parse error message
       let userMessage = 'Failed to save your claim. Please try again.';
       
       if (error.message?.includes('Daily limit reached')) {
@@ -129,440 +188,112 @@ export default function MapScreen() {
         userMessage = 'Network error. Please check your connection and try again.';
       }
       
-      // Show error to user
-      Alert.alert(
-        '❌ Claim Failed',
-        userMessage,
-        [{ text: 'OK' }]
-      );
+      Alert.alert('❌ Claim Failed', userMessage, [{ text: 'OK' }]);
     }
   };
 
   // ========================================
-  // PHASE 1: ENTRY MODE (10 seconds)
-  // Yellow arc animation when entering radius
+  // TOGGLE FOLLOW MODE
   // ========================================
-  useEffect(() => {
-    if (isInsideRadius && !isCaptureActive && entryProgress === 0) {
-      console.log('🚪 ENTRY MODE started (10 seconds)...');
-      
-      const startTime = Date.now();
-      const duration = ENTRY_DURATION * 1000; // 10 seconds
-      
-      const animate = () => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        setEntryProgress(progress);
-        
-        if (progress < 1) {
-          entryAnimationRef.current = requestAnimationFrame(animate);
-        } else {
-          // Entry complete → fetch daily seconds then start capture mode
-          console.log('✅ ENTRY complete → Starting CAPTURE mode');
-          setEntryProgress(1);
-          
-          // Fetch how many seconds user already claimed today at this POI
-          if (user && activePOI) {
-            ClaimService.getDailySecondsForPOI(user.id, activePOI.id).then((seconds) => {
-              console.log(`📊 Already claimed ${seconds}s today at this POI`);
-              setDailySecondsForActivePOI(seconds);
-              
-              if (seconds >= 60) {
-                console.log('⚠️ Daily limit reached (60s) - cannot capture more');
-                
-                // Show alert to user
-                Alert.alert(
-                  '✅ Daily Limit Reached',
-                  `You've already claimed 60 seconds at ${activePOI.name} today.\n\nCome back tomorrow to earn more!`,
-                  [{ text: 'OK' }]
-                );
-                
-                // Don't start capture mode
-              } else {
-                setIsCaptureActive(true);
-                console.log(`🎯 You have ${60 - seconds}s remaining today`);
-              }
-            });
-          } else {
-            setIsCaptureActive(true);
-          }
-          
-          entryAnimationRef.current = null;
-        }
-      };
-      
-      entryAnimationRef.current = requestAnimationFrame(animate);
-    } else if (!isInsideRadius) {
-      // User left radius → reset everything
-      console.log('❌ Left radius → Resetting all modes');
-      setEntryProgress(0);
-      setIsCaptureActive(false);
-      if (entryAnimationRef.current) {
-        cancelAnimationFrame(entryAnimationRef.current);
-        entryAnimationRef.current = null;
-      }
-    }
-    
-    // NO cleanup function - let animation run to completion
-  }, [isInsideRadius]);
-  
+  const toggleFollowMode = () => {
+    setFollowMode((prev) =>
+      prev === UserTrackingMode.FollowWithHeading
+        ? UserTrackingMode.Follow
+        : UserTrackingMode.FollowWithHeading
+    );
+  };
+
   // ========================================
-  // PHASE 2: CAPTURE MODE (starts after entry completes)
-  // Timer counts from 0:00 to 1:00 (60 seconds max)
+  // RENDER
   // ========================================
-  useEffect(() => {
-    if (isCaptureActive && !captureIntervalRef.current) {
-      console.log('🎯 CAPTURE MODE started');
-      
-      // Record capture start time
-      captureStartTimeRef.current = new Date();
-      
-      // Start timer from daily seconds already claimed
-      setCaptureSeconds(dailySecondsForActivePOI);
-      setSessionSeconds(0); // Reset session seconds (new seconds in THIS session)
-      
-      console.log(`🎯 CAPTURE MODE started (continuing from ${dailySecondsForActivePOI}s)`);
-      
-      // Start capture timer (updates every second)
-      captureIntervalRef.current = setInterval(() => {
-        setCaptureSeconds((prev) => {
-          const newSeconds = prev + 1;
-          
-          // Add 1 second to session
-          let bonusSeconds = 0;
-          
-          // Check if we just completed a full minute
-          if (newSeconds % 60 === 0) {
-            bonusSeconds = MINUTE_BONUS_SECONDS;
-            console.log(`🎉 MINUTE BONUS! +${MINUTE_BONUS_SECONDS} seconds`);
-          }
-          
-          // Update session seconds (real time + bonuses)
-          setSessionSeconds((prevSeconds) => {
-            const newSessionSeconds = prevSeconds + 1 + bonusSeconds;
-            if (bonusSeconds > 0) {
-              console.log(`⏱️ Session: ${newSeconds}s captured = ${newSessionSeconds}s earned (${Math.floor(newSeconds / 60)} minute bonus)`);
-            }
-            
-            // Stop at 60 seconds (1 minute)
-            if (newSeconds >= 60) {
-              if (captureIntervalRef.current) {
-                clearInterval(captureIntervalRef.current);
-                captureIntervalRef.current = null;
-              }
-              console.log('✅ CAPTURE complete at 1:00');
-              
-              // Save claim to database with the calculated session seconds
-              saveClaimToDatabase(newSessionSeconds);
-              
-              // Reset capture start time
-              captureStartTimeRef.current = null;
-            }
-            
-            return newSessionSeconds;
-          });
-          
-          return newSeconds;
-        });
-      }, 1000);
-    } else if (!isCaptureActive && captureIntervalRef.current) {
-      // Stop capture and save seconds
-      console.log('⏹️ CAPTURE MODE stopped');
-      
-      // Save session seconds to total
-      if (sessionSeconds > 0) {
-        setTotalCapturedSeconds((prev) => {
-          const newTotal = prev + sessionSeconds;
-          console.log(`💾 Saved ${sessionSeconds}s this session. Total: ${newTotal}s`);
-          return newTotal;
-        });
-      }
-      
-      clearInterval(captureIntervalRef.current);
-      captureIntervalRef.current = null;
-      setCaptureSeconds(0);
-      setSessionSeconds(0);
-      setDailySecondsForActivePOI(0);
-    }
-    
-    return () => {
-      if (captureIntervalRef.current) {
-        clearInterval(captureIntervalRef.current);
-        captureIntervalRef.current = null;
-      }
-    };
-  }, [isCaptureActive]);
-  
-  // ========================================
-  // CLEANUP: Stop capture and save time when leaving radius
-  // ========================================
-  useEffect(() => {
-    if (!isInsideRadius && isCaptureActive) {
-      console.log('❌ Left radius during CAPTURE mode');
-      
-      // Save claim to database
-      if (sessionSeconds > 0) {
-        saveClaimToDatabase(sessionSeconds);
-        
-        setTotalCapturedSeconds((prev) => {
-          const newTotal = prev + sessionSeconds;
-          console.log(`💾 Session ended: +${sessionSeconds}s`);
-          console.log(`⏱️ Total captured: ${newTotal}s`);
-          return newTotal;
-        });
-      }
-      
-      // Reset capture start time
-      captureStartTimeRef.current = null;
-      
-      // Stop capture mode
-      setIsCaptureActive(false);
-    }
-  }, [isInsideRadius, isCaptureActive, sessionSeconds]);
-
-
-
-
-  // Track user location and check distance to nearest POI
-  useEffect(() => {
-    let locationSubscription: Location.LocationSubscription | null = null;
-
-    const startLocationTracking = async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        console.log('Location permission not granted');
-        return;
-      }
-
-      console.log('Starting location tracking...');
-
-      // Get initial location
-      try {
-        const initialLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.BestForNavigation,
-        });
-        console.log('Initial location:', initialLocation.coords.latitude, initialLocation.coords.longitude);
-        setUserLocation(initialLocation);
-      } catch (error) {
-        console.error('Error getting initial location:', error);
-      }
-
-      // Watch for position changes
-      locationSubscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.BestForNavigation,
-          timeInterval: 1000,
-          distanceInterval: 1, // Update every 1 meter
-        },
-        (location) => {
-          console.log('Location update received:', {
-            lat: location.coords.latitude,
-            lng: location.coords.longitude,
-            accuracy: location.coords.accuracy,
-          });
-          
-          setUserLocation(location);
-        }
-      );
-
-    };
-
-    startLocationTracking();
-
-    return () => {
-      if (locationSubscription) {
-        locationSubscription.remove();
-      }
-    };
-  }, []);
-
-  // Check if user is inside radius of any POI
-  useEffect(() => {
-    if (!userLocation || pois.length === 0) return;
-
-    // Find nearest POI
-    let nearestPOI: POI | null = null;
-    let nearestDistance: number = Infinity;
-
-    for (const poi of pois) {
-      const distance = calculateDistance(
-        userLocation.coords.latitude,
-        userLocation.coords.longitude,
-        poi.latitude,
-        poi.longitude
-      );
-
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearestPOI = poi;
-      }
-    }
-
-    if (nearestPOI && nearestDistance <= CLAIM_RADIUS) {
-      // Inside radius of nearest POI
-      if (activePOI?.id !== nearestPOI.id) {
-        console.log(`✅ Entered ${nearestPOI.name} (${nearestDistance.toFixed(1)}m)`);
-        setActivePOI(nearestPOI);
-        setIsInsideRadius(true);
-      }
-      setDistanceToActivePOI(nearestDistance);
-    } else {
-      // Outside all POI radii
-      if (isInsideRadius) {
-        console.log('❌ Left all POI radii');
-        setActivePOI(null);
-        setIsInsideRadius(false);
-        setDistanceToActivePOI(null);
-      }
-    }
-  }, [userLocation, pois, activePOI, isInsideRadius]);
-  
   return (
     <SafeAreaView style={styles.container} edges={[]}>
-      <MapView 
+      <MapView
         style={styles.map}
+        styleURL="mapbox://styles/mapbox/dark-v11"
         scaleBarEnabled={true}
-        scaleBarPosition={{ top: insets.top + 10, left: 16 }}
-        compassEnabled={true}
-        compassPosition={{ top: insets.top + 10, right: 16 }}
+        scaleBarPosition={{ bottom: insets.bottom + 60, left: 8 }}
+        scrollEnabled={false}
+        zoomEnabled={false}
+        pitchEnabled={false}
+        rotateEnabled={true}
       >
-        <Images>
-          <Image name="topImage">
-            <View
-              style={{
-                width: 0,
-                height: 0,
-                backgroundColor: 'transparent',
-                borderStyle: 'solid',
-                borderLeftWidth: 6,
-                borderRightWidth: 6,
-                borderBottomWidth: 12,
-                borderLeftColor: 'transparent',
-                borderRightColor: 'transparent',
-                borderBottomColor: 'black',
-              }}
-            />
-          </Image>
-          <Image name="castleIcon">
-            <View style={styles.iconBackground}>
-              <MaterialIcons name="castle" size={24} color="white" />
-            </View>
-          </Image>
-        </Images>
         <Camera
-          defaultSettings={{
-            centerCoordinate: [-77.036086, 38.910233],
-            zoomLevel: 14,
-          }}
           followUserLocation={true}
           followUserMode={followMode}
-          followZoomLevel={14}
+          followZoomLevel={17}
+          animationMode="easeTo"
+          animationDuration={200}
         />
+
+        {/* User location puck */}
+        <Images>
+          <Image name="customLocationIcon">
+            <View style={styles.locationIcon} />
+          </Image>
+        </Images>
+
         <LocationPuck
-          topImage="topImage"
+          topImage="customLocationIcon"
           visible={true}
-          scale={['interpolate', ['linear'], ['zoom'], 10, 0.8, 20, 2.0]}
-          pulsing={{
-            isEnabled: true,
-            color: 'teal',
-            radius: 30.0,
-          }}
+          pulsing={{ isEnabled: true, color: '#007AFF', radius: 100 }}
         />
-        
-        {/* Radius circle - only visible when inside */}
-        {isInsideRadius && activePOI && (
-          <ShapeSource
-            id="radius-circle"
-            shape={{
-              type: 'Feature',
-              geometry: {
-                type: 'Polygon',
-                coordinates: generateCirclePolygon(activePOI.longitude, activePOI.latitude, CLAIM_RADIUS),
-              },
-              properties: {},
-            }}
-          >
-            <FillLayer
-              id="radius-circle-fill"
-              style={{
-                fillColor: 'rgba(0, 255, 0, 0.2)', // Green fill
-              }}
-            />
-            <LineLayer
-              id="radius-circle-stroke"
-              style={{
-                lineColor: '#00ff00', // Green border
-                lineWidth: animatedBorderWidth, // Pulsing animation
-              }}
-            />
-          </ShapeSource>
+
+        {/* Radius circle and entry arc */}
+        {activePOI && (
+          <RadiusCircle
+            coordinates={activePOI.coordinates}
+            entryProgress={entryProgress}
+            isCaptureActive={isCaptureActive}
+          />
         )}
-        
-        {/* Entry arc - Phase 1 (yellow, 0-10 seconds) */}
-        {isInsideRadius && activePOI && entryProgress > 0 && entryProgress < 1 && (
-          <ShapeSource
-            id="entry-arc"
-            shape={{
-              type: 'Feature',
-              geometry: {
-                type: 'LineString',
-                coordinates: generateProgressArc(activePOI.longitude, activePOI.latitude, CLAIM_RADIUS, entryProgress),
-              },
-              properties: {},
-            }}
-          >
-            <LineLayer
-              id="entry-arc-stroke"
-              style={{
-                lineColor: '#ffff00',
-                lineWidth: 6,
-                lineCap: 'round',
-                lineJoin: 'round',
-              }}
-            />
-          </ShapeSource>
-        )}
-        
-        
-        
-        {/* Real POIs from OpenStreetMap */}
+
+        {/* POI markers */}
         {pois.map((poi) => (
-          <POIMarker key={poi.id} poi={poi} size={14} />
+          <POIMarker key={poi.id} poi={poi} />
         ))}
       </MapView>
-      
-      {/* Capture timer display - Phase 2 (shows when capturing) */}
-      {isCaptureActive && (
-        <View style={[styles.timerOverlay, { top: insets.top + 60 }]}>
-          <Text style={styles.timerText}>
-            {Math.floor(captureSeconds / 60)}:{(captureSeconds % 60).toString().padStart(2, '0')}
-          </Text>
-        </View>
-      )}
-      
+
+      {/* Map controls */}
+      <MapControls
+        followUserMode={followMode}
+        onToggleFollowMode={toggleFollowMode}
+        topInset={insets.top}
+      />
+
+      {/* Capture timer */}
+      <CaptureTimer
+        captureSeconds={captureSeconds}
+        isCaptureActive={isCaptureActive}
+        topInset={insets.top}
+      />
+
       {/* Status indicator */}
       {activePOI && distanceToActivePOI !== null && (
-        <View style={[styles.statusIndicator, { bottom: insets.bottom + 20 }]}>
-          <Text style={styles.statusText}>
-            {isInsideRadius ? `✅ Inside ${activePOI.name}` : `❌ Outside ${activePOI.name}`}
-          </Text>
-          <Text style={[styles.statusText, { fontSize: 12, marginTop: 4, opacity: 0.8 }]}>
-            Distance: {distanceToActivePOI.toFixed(1)}m / {CLAIM_RADIUS}m
-          </Text>
+        <View style={[styles.statusIndicator, { top: insets.top + 120 }]}>
+          <View style={styles.statusContent}>
+            <View style={styles.statusRow}>
+              <View
+                style={[
+                  styles.statusDot,
+                  { backgroundColor: isInsideRadius ? '#4CAF50' : '#FF9800' },
+                ]}
+              />
+              <View style={styles.statusText}>
+                <View style={styles.poiNameRow}>
+                  <View style={styles.poiIcon}>{/* Icon can be added here */}</View>
+                  <View style={styles.textContainer}>
+                    <Text style={styles.poiNameText}>{activePOI.name}</Text>
+                    <Text style={styles.distanceText}>
+                      {distanceToActivePOI.toFixed(1)}m away
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
         </View>
       )}
-      
-      {/* Toggle follow mode button */}
-      <TouchableOpacity 
-        style={[styles.followButton, { top: insets.top + 10, right: 16 }]}
-        onPress={toggleFollowMode}
-      >
-        <MaterialIcons 
-          name={followMode === UserTrackingMode.FollowWithHeading ? "navigation" : "my-location"} 
-          size={24} 
-          color="#fff" 
-        />
-      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -570,75 +301,66 @@ export default function MapScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000',
   },
   map: {
     flex: 1,
   },
-  followButton: {
-    position: 'absolute',
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+  locationIcon: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderBottomWidth: 16,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#007AFF',
+    transform: [{ rotate: '180deg' }],
   },
   statusIndicator: {
     position: 'absolute',
-    alignSelf: 'center',
+    left: 16,
+    right: 16,
+    zIndex: 150,
+  },
+  statusContent: {
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    borderRadius: 12,
+    padding: 12,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 8,
   },
   statusText: {
+    flex: 1,
+  },
+  poiNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  poiIcon: {
+    width: 24,
+    height: 24,
+    marginRight: 8,
+  },
+  textContainer: {
+    flex: 1,
+  },
+  poiNameText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
   },
-  markerContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconBackground: {
-    backgroundColor: '#8B4513', // Brown for castle
-    borderRadius: 24,
-    padding: 8,
-    borderWidth: 3,
-    borderColor: 'white',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.4,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  markerDot: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: 'red',
-    borderWidth: 2,
-    borderColor: 'white',
-    zIndex: 2,
-  },
-  timerOverlay: {
-    position: 'absolute',
-    alignSelf: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    zIndex: 1000,
-  },
-  timerText: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '700',
-    fontFamily: 'monospace',
+  distanceText: {
+    color: '#ccc',
+    fontSize: 14,
+    marginTop: 2,
   },
 });
