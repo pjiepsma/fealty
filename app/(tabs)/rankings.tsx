@@ -1,126 +1,186 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, FlatList, RefreshControl } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { FlatList, RefreshControl, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useTranslation } from 'react-i18next';
+import { useTypedTranslation } from '@/hooks/useTypedTranslation';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/services/supabase';
-import { getCurrentMonth } from '@/utils/date';
+import { XStack, YStack, Text, View, styled, useTheme } from 'tamagui';
+import { Crown, Trophy, Award, Search, User } from '@tamagui/lucide-icons';
+import { ActivityIndicator, TouchableOpacity } from 'react-native';
 
-type TabType = 'world' | 'country' | 'city' | 'personal';
+// Styled components with Tamagui theme
+const Card = styled(View, {
+  backgroundColor: '$cardBackground',
+  borderRadius: 12,
+  padding: 16,
+  marginBottom: 8,
+  borderWidth: 1,
+  borderColor: '$borderColor',
+});
+
+type TabType = 'world' | 'country' | 'city';
+type TimePeriod = 'seasonal' | 'lifetime';
 
 interface LeaderboardEntry {
   user_id: string;
   username: string;
-  seconds: number;
+  crowns: number;
   rank: number;
-  poi_name?: string; // For personal tab
 }
 
 export default function RankingsScreen() {
-  const { t } = useTranslation();
+  const { t } = useTypedTranslation();
   const { user } = useAuth();
+  const theme = useTheme();
   
-  const [activeTab, setActiveTab] = useState<TabType>('world');
+  const [activeTab, setActiveTab] = useState<TabType>('city');
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>('seasonal');
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [highlightedUserId, setHighlightedUserId] = useState<string | null>(null);
+  const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
     loadLeaderboard();
-  }, [activeTab]);
+  }, [activeTab, timePeriod]);
+
+  useEffect(() => {
+    // Find and scroll to user when search query matches
+    if (searchQuery.trim() && leaderboard.length > 0) {
+      const matchedUser = leaderboard.find((entry) =>
+        entry.username.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      
+      if (matchedUser) {
+        setHighlightedUserId(matchedUser.user_id);
+        const index = leaderboard.findIndex((e) => e.user_id === matchedUser.user_id);
+        if (index >= 0 && flatListRef.current) {
+          setTimeout(() => {
+            flatListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.3 });
+          }, 100);
+        }
+      } else {
+        setHighlightedUserId(null);
+      }
+    } else {
+      setHighlightedUserId(null);
+    }
+  }, [searchQuery, leaderboard]);
 
   const loadLeaderboard = async () => {
     try {
       setLoading(true);
       let data: LeaderboardEntry[] = [];
 
-      if (activeTab === 'world') {
-        // Global leaderboard - query users table directly
-        const { data: userData, error } = await supabase
+      // Get current month in YYYY-MM format
+      const currentMonth = new Date().toISOString().slice(0, 7);
+      
+      // Build query to calculate crowns per user
+      // For each POI, find the user with most seconds (king)
+      // Then count how many POIs each user is king of
+      
+      let query = supabase
+        .from('claims')
+        .select('poi_id, user_id, seconds_earned, month');
+      
+      // Filter by month if monthly period
+      if (timePeriod === 'seasonal') {
+        query = query.eq('month', currentMonth);
+      }
+      
+      // Filter by location scope
+      if (activeTab === 'country' && user?.home_country) {
+        // Get user IDs in the country
+        const { data: countryUsers } = await supabase
           .from('users')
-          .select('id, username, total_seconds')
-          .order('total_seconds', { ascending: false })
-          .limit(100);
+          .select('id')
+          .eq('home_country', user.home_country);
         
-        if (error) throw error;
-        
-        data = (userData || []).map((u, index) => ({
-          user_id: u.id,
-          username: u.username,
-          seconds: u.total_seconds,
-          rank: index + 1,
-        }));
-        
-      } else if (activeTab === 'country' && user?.home_country) {
-        // Country leaderboard - filter by country
-        const { data: userData, error } = await supabase
-          .from('users')
-          .select('id, username, total_seconds')
-          .eq('home_country', user.home_country)
-          .order('total_seconds', { ascending: false })
-          .limit(100);
-        
-        if (error) throw error;
-        
-        data = (userData || []).map((u, index) => ({
-          user_id: u.id,
-          username: u.username,
-          seconds: u.total_seconds,
-          rank: index + 1,
-        }));
-        
-      } else if (activeTab === 'city' && user?.home_city) {
-        // City leaderboard - filter by city
-        const { data: userData, error } = await supabase
-          .from('users')
-          .select('id, username, total_seconds')
-          .eq('home_city', user.home_city)
-          .order('total_seconds', { ascending: false })
-          .limit(100);
-        
-        if (error) throw error;
-        
-        data = (userData || []).map((u, index) => ({
-          user_id: u.id,
-          username: u.username,
-          seconds: u.total_seconds,
-          rank: index + 1,
-        }));
-        
-      } else if (activeTab === 'personal' && user?.id) {
-        // Personal POI captures - show POIs the user has captured
-        const { data: claimsData, error } = await supabase
-          .from('claims')
-          .select('poi_id, seconds_earned')
-          .eq('user_id', user.id);
-        
-        if (error) throw error;
-
-        // Group by POI and sum seconds
-        const poiSecondsMap = new Map<string, number>();
-        claimsData?.forEach((claim: any) => {
-          const current = poiSecondsMap.get(claim.poi_id) || 0;
-          poiSecondsMap.set(claim.poi_id, current + claim.seconds_earned);
-        });
-
-        // Get POI details
-        const poiIds = Array.from(poiSecondsMap.keys());
-        if (poiIds.length > 0) {
-          const { data: poisData, error: poisError } = await supabase
-            .from('pois')
-            .select('id, name')
-            .in('id', poiIds);
-          
-          if (poisError) throw poisError;
-
-          data = (poisData || []).map((poi, index) => ({
-            user_id: user.id,
-            username: poi.name,
-            seconds: poiSecondsMap.get(poi.id) || 0,
-            rank: index + 1,
-            poi_name: poi.name,
-          })).sort((a, b) => b.seconds - a.seconds);
+        const userIds = countryUsers?.map(u => u.id) || [];
+        if (userIds.length === 0) {
+          setLeaderboard([]);
+          return;
         }
+        query = query.in('user_id', userIds);
+      } else if (activeTab === 'city' && user?.home_city) {
+        // Get user IDs in the city
+        const { data: cityUsers } = await supabase
+          .from('users')
+          .select('id')
+          .eq('home_city', user.home_city);
+        
+        const userIds = cityUsers?.map(u => u.id) || [];
+        if (userIds.length === 0) {
+          setLeaderboard([]);
+          return;
+        }
+        query = query.in('user_id', userIds);
+      }
+      
+      const { data: claimsData, error } = await query;
+      
+      if (error) throw error;
+      
+      // Group by POI and user, sum seconds
+      const poiUserSeconds = new Map<string, Map<string, number>>();
+      
+      claimsData?.forEach((claim: any) => {
+        const poiKey = claim.poi_id;
+        const userKey = claim.user_id;
+        
+        if (!poiUserSeconds.has(poiKey)) {
+          poiUserSeconds.set(poiKey, new Map());
+        }
+        
+        const userMap = poiUserSeconds.get(poiKey)!;
+        const current = userMap.get(userKey) || 0;
+        userMap.set(userKey, current + claim.seconds_earned);
+      });
+      
+      // For each POI, find the king (user with most seconds)
+      const userCrowns = new Map<string, number>();
+      
+      poiUserSeconds.forEach((userMap, poiId) => {
+        let maxSeconds = 0;
+        let kingUserId: string | null = null;
+        
+        userMap.forEach((seconds, userId) => {
+          if (seconds > maxSeconds) {
+            maxSeconds = seconds;
+            kingUserId = userId;
+          }
+        });
+        
+        if (kingUserId) {
+          const current = userCrowns.get(kingUserId) || 0;
+          userCrowns.set(kingUserId, current + 1);
+        }
+      });
+      
+      // Get user details for crown holders
+      const userIds = Array.from(userCrowns.keys());
+      if (userIds.length > 0) {
+        const { data: usersData, error: usersError } = await supabase
+          .from('users')
+          .select('id, username')
+          .in('id', userIds);
+        
+        if (usersError) throw usersError;
+        
+        data = (usersData || [])
+          .map((u) => ({
+            user_id: u.id,
+            username: u.username,
+            crowns: userCrowns.get(u.id) || 0,
+            rank: 0, // Will be set after sorting
+          }))
+          .sort((a, b) => b.crowns - a.crowns)
+          .map((entry, index) => ({
+            ...entry,
+            rank: index + 1,
+          }));
       }
 
       setLeaderboard(data);
@@ -132,227 +192,289 @@ export default function RankingsScreen() {
     }
   };
 
+  const scrollToUser = () => {
+    if (!user?.id || !flatListRef.current) return;
+    
+    const userIndex = leaderboard.findIndex((entry) => entry.user_id === user.id);
+    if (userIndex >= 0) {
+      setSearchQuery('');
+      setHighlightedUserId(user.id);
+      setTimeout(() => {
+        flatListRef.current?.scrollToIndex({ index: userIndex, animated: true, viewPosition: 0.3 });
+      }, 100);
+    }
+  };
+
   const onRefresh = () => {
     setRefreshing(true);
     loadLeaderboard();
   };
 
-  const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
+  const renderRankIcon = (rank: number, isCurrentUser: boolean, isHighlighted: boolean) => {
+    const accentColor = theme.accent?.val || '#8B6914';
+    const textColor = theme.color?.val || '#f5f5f5';
+    const backgroundColor = theme.background?.val || '#0a0a0a';
     
-    if (minutes > 0) {
-      return `${minutes}m ${remainingSeconds}s`;
-    }
-    return `${remainingSeconds}s`;
-  };
-
-  const renderLeaderboardItem = ({ item, index }: { item: LeaderboardEntry; index: number }) => {
-    const isCurrentUser = activeTab !== 'personal' && user?.id === item.user_id;
+    // Rank color: if card is gold (current user), use dark background color, otherwise use accent/text
+    const rankTextColor = isCurrentUser || isHighlighted 
+      ? backgroundColor 
+      : (rank <= 3 ? accentColor : textColor);
+    const rankIconColor = isCurrentUser || isHighlighted 
+      ? backgroundColor 
+      : accentColor;
     
     return (
-      <View style={[styles.leaderboardItem, isCurrentUser && styles.currentUserItem]}>
-        <View style={styles.rankContainer}>
-          {item.rank <= 3 ? (
-            <Text style={styles.rankMedal}>{['🥇', '🥈', '🥉'][item.rank - 1]}</Text>
-          ) : (
-            <Text style={styles.rankText}>#{item.rank}</Text>
-          )}
-        </View>
-        <View style={styles.userInfo}>
-          <Text style={[styles.username, isCurrentUser && styles.currentUsername]}>
-            {item.username}
-          </Text>
-          {activeTab === 'personal' && item.poi_name && (
-            <Text style={styles.poiName}>{item.poi_name}</Text>
-          )}
-        </View>
-        <Text style={[styles.secondsText, isCurrentUser && styles.currentMinutes]}>
-          {formatTime(item.seconds)}
+      <YStack alignItems="center" gap="$1" minWidth={50}>
+        <Text 
+          fontSize={16} 
+          fontWeight="700" 
+          color={rankTextColor}
+          opacity={1}
+        >
+          #{rank}
         </Text>
-      </View>
+      </YStack>
     );
   };
 
+  const renderLeaderboardItem = ({ item, index }: { item: LeaderboardEntry; index: number }) => {
+    const isCurrentUser = user?.id === item.user_id;
+    const isHighlighted = highlightedUserId === item.user_id;
+    const cardBg = isCurrentUser || isHighlighted 
+      ? accentColor 
+      : (theme.cardBackground?.val || '#151515');
+    const cardBorder = isCurrentUser || isHighlighted 
+      ? (theme.accentHover?.val || '#A67C00') 
+      : borderColor;
+    const itemTextColor = isCurrentUser || isHighlighted ? backgroundColor : textColor;
+    const itemCrownColor = isCurrentUser || isHighlighted ? backgroundColor : accentColor;
+    
+    return (
+      <Card
+        backgroundColor={cardBg}
+        borderColor={cardBorder}
+        opacity={isCurrentUser ? 1 : 0.95}
+      >
+        <XStack alignItems="center" gap="$3">
+          {/* Rank - Always visible */}
+          {renderRankIcon(item.rank, isCurrentUser, isHighlighted)}
+
+          {/* User Info */}
+          <YStack flex={1}>
+            <Text 
+              fontSize={16} 
+              fontWeight="600" 
+              color={itemTextColor}
+            >
+              {item.username}
+            </Text>
+          </YStack>
+
+          {/* Crowns */}
+          <XStack alignItems="center" gap="$1">
+            <Crown size={20} color={itemCrownColor} />
+            <Text 
+              fontSize={16} 
+              fontWeight="600" 
+              color={itemCrownColor}
+            >
+              {item.crowns}
+            </Text>
+          </XStack>
+        </XStack>
+      </Card>
+    );
+  };
+
+  const tabs: { key: TabType; label: string }[] = [
+    { key: 'city', label: t('rankings.tabs.city') },
+    { key: 'country', label: t('rankings.tabs.country') },
+    { key: 'world', label: t('rankings.tabs.world') },
+  ];
+
+
+  const backgroundColor = theme.background?.val || '#0a0a0a';
+  const textColor = theme.color?.val || '#f5f5f5';
+  const accentColor = theme.accent?.val || '#8B6914';
+  const borderColor = theme.borderColor?.val || '#1a1a1a';
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>{t('rankings.title')}</Text>
-      </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor }} edges={['top']}>
+      <YStack flex={1} backgroundColor={backgroundColor}>
+        {/* Header */}
+        <YStack padding="$4" paddingTop="$5">
+          <Text fontSize={32} fontWeight="700" color={textColor}>
+            {t('rankings.title')}
+          </Text>
+        </YStack>
 
-      {/* Tabs */}
-      <View style={styles.tabs}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'world' && styles.activeTab]}
-          onPress={() => setActiveTab('world')}
+        {/* Time Period Toggle */}
+        <XStack 
+          backgroundColor={backgroundColor}
+          paddingHorizontal="$4"
+          paddingBottom="$3"
+          gap="$2"
         >
-          <Text style={[styles.tabText, activeTab === 'world' && styles.activeTabText]}>
-            {t('rankings.world')}
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'country' && styles.activeTab]}
-          onPress={() => setActiveTab('country')}
-        >
-          <Text style={[styles.tabText, activeTab === 'country' && styles.activeTabText]}>
-            {t('rankings.country')}
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'city' && styles.activeTab]}
-          onPress={() => setActiveTab('city')}
-        >
-          <Text style={[styles.tabText, activeTab === 'city' && styles.activeTabText]}>
-            {t('rankings.city')}
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'personal' && styles.activeTab]}
-          onPress={() => setActiveTab('personal')}
-        >
-          <Text style={[styles.tabText, activeTab === 'personal' && styles.activeTabText]}>
-            {t('rankings.personal')}
-          </Text>
-        </TouchableOpacity>
-      </View>
+          <XStack
+            flex={1}
+            backgroundColor={timePeriod === 'seasonal' ? accentColor : (theme.cardBackground?.val || '#151515')}
+            borderRadius={8}
+            paddingVertical="$2"
+            paddingHorizontal="$3"
+            alignItems="center"
+            justifyContent="center"
+            onPress={() => setTimePeriod('seasonal')}
+            pressStyle={{ opacity: 0.7 }}
+          >
+            <Text
+              fontSize={14}
+              fontWeight={timePeriod === 'seasonal' ? '600' : '400'}
+              color={timePeriod === 'seasonal' ? backgroundColor : textColor}
+            >
+              {t('rankings.timePeriod.seasonal')}
+            </Text>
+          </XStack>
+          <XStack
+            flex={1}
+            backgroundColor={timePeriod === 'lifetime' ? accentColor : (theme.cardBackground?.val || '#151515')}
+            borderRadius={8}
+            paddingVertical="$2"
+            paddingHorizontal="$3"
+            alignItems="center"
+            justifyContent="center"
+            onPress={() => setTimePeriod('lifetime')}
+            pressStyle={{ opacity: 0.7 }}
+          >
+            <Text
+              fontSize={14}
+              fontWeight={timePeriod === 'lifetime' ? '600' : '400'}
+              color={timePeriod === 'lifetime' ? backgroundColor : textColor}
+            >
+              {t('rankings.timePeriod.lifetime')}
+            </Text>
+          </XStack>
+        </XStack>
 
-      {/* Content */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-        </View>
-      ) : leaderboard.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>
-            {activeTab === 'personal' 
-              ? t('rankings.noClaims')
-              : t('rankings.noData')}
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={leaderboard}
-          renderItem={renderLeaderboardItem}
-          keyExtractor={(item, index) => `${item.user_id}-${index}`}
-          contentContainerStyle={styles.leaderboardContainer}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-        />
-      )}
+        {/* Location Tabs */}
+        <XStack 
+          backgroundColor={backgroundColor}
+          borderBottomWidth={1}
+          borderBottomColor={borderColor}
+        >
+          {tabs.map(tab => {
+            const active = activeTab === tab.key
+
+            return (
+              <YStack
+                key={tab.key}
+                flex={1}
+                onPress={() => setActiveTab(tab.key)}
+                pressStyle={{ opacity: 0.7 }}
+                alignItems="center"
+                justifyContent="center"
+                paddingVertical="$3"
+                borderBottomWidth={active ? 2 : 0}
+                borderBottomColor={accentColor}
+              >
+                <Text
+                  fontSize={14}
+                  fontWeight={active ? '600' : '400'}
+                  color={active ? accentColor : textColor}
+                  opacity={active ? 1 : 0.7}
+                >
+                  {tab.label}
+                </Text>
+              </YStack>
+            )
+          })}
+        </XStack>
+
+        {/* Search and Find Me */}
+        <XStack 
+          backgroundColor={backgroundColor}
+          paddingHorizontal="$4"
+          paddingVertical="$3"
+          gap="$2"
+          alignItems="center"
+        >
+          <XStack
+            flex={1}
+            backgroundColor={theme.cardBackground?.val || '#151515'}
+            borderRadius={8}
+            paddingHorizontal="$3"
+            paddingVertical="$2"
+            alignItems="center"
+            gap="$2"
+            borderWidth={1}
+            borderColor={borderColor}
+          >
+            <Search size={16} color={textColor} opacity={0.5} />
+            <TextInput
+              style={{
+                flex: 1,
+                color: textColor,
+                fontSize: 14,
+              }}
+              placeholder={t('rankings.searchPlaceholder')}
+              placeholderTextColor={textColor + '80'}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </XStack>
+          {user && (
+            <TouchableOpacity
+              onPress={scrollToUser}
+              style={{
+                backgroundColor: accentColor,
+                borderRadius: 8,
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                height: 40,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+              }}
+            >
+              <User size={16} color={backgroundColor} />
+              <Text fontSize={14} fontWeight="600" color={backgroundColor}>
+                {t('rankings.findMe')}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </XStack>
+
+        {/* Content */}
+        {loading ? (
+          <YStack flex={1} alignItems="center" justifyContent="center">
+            <ActivityIndicator size="large" color={accentColor} />
+          </YStack>
+        ) : leaderboard.length === 0 ? (
+          <YStack flex={1} alignItems="center" justifyContent="center" padding="$8">
+            <Text fontSize={16} color={textColor} opacity={0.5} textAlign="center">
+              {t('rankings.noData')}
+            </Text>
+          </YStack>
+        ) : (
+          <FlatList
+            ref={flatListRef}
+            data={leaderboard}
+            renderItem={renderLeaderboardItem}
+            keyExtractor={(item, index) => `${item.user_id}-${index}`}
+            contentContainerStyle={{ padding: 16 }}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            }
+            onScrollToIndexFailed={(info) => {
+              // Handle scroll to index failure gracefully
+              const wait = new Promise(resolve => setTimeout(resolve, 500));
+              wait.then(() => {
+                flatListRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.3 });
+              });
+            }}
+          />
+        )}
+      </YStack>
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  header: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  tabs: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#333',
-    backgroundColor: '#111',
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  activeTab: {
-    borderBottomWidth: 2,
-    borderBottomColor: '#007AFF',
-  },
-  tabText: {
-    fontSize: 14,
-    color: '#888',
-  },
-  activeTabText: {
-    color: '#007AFF',
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-  },
-  leaderboardContainer: {
-    padding: 16,
-  },
-  leaderboardItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#111',
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  currentUserItem: {
-    backgroundColor: '#1a3a52',
-    borderWidth: 1,
-    borderColor: '#007AFF',
-  },
-  rankContainer: {
-    width: 50,
-    alignItems: 'center',
-  },
-  rankMedal: {
-    fontSize: 24,
-  },
-  rankText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#888',
-  },
-  userInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  username: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  currentUsername: {
-    color: '#007AFF',
-  },
-  poiName: {
-    fontSize: 12,
-    color: '#888',
-    marginTop: 2,
-  },
-  secondsText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#888',
-  },
-  currentMinutes: {
-    color: '#007AFF',
-  },
-});

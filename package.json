@@ -17,6 +17,14 @@
     "@react-navigation/native": "^7.1.22",
     "@rnmapbox/maps": "^10.2.7",
     "@supabase/supabase-js": "^2.86.0",
+    "@tamagui/animations-react-native": "^1.138.6",
+    "@tamagui/config": "^1.138.6",
+    "@tamagui/core": "^1.138.6",
+    "@tamagui/lucide-icons": "^1.138.6",
+    "@tamagui/metro-plugin": "^1.138.6",
+    "@tamagui/portal": "^1.138.6",
+    "@tamagui/sheet": "^1.138.6",
+    "@tamagui/vite-plugin": "^1.138.6",
     "date-fns": "^4.1.0",
     "expo": "~54.0.25",
     "expo-dev-client": "~6.0.18",
@@ -37,9 +45,11 @@
     "react-native-screens": "~4.16.0",
     "react-native-svg": "15.12.1",
     "react-native-vector-icons": "^10.3.0",
-    "react-native-web": "^0.21.0"
+    "react-native-web": "^0.21.0",
+    "tamagui": "^1.138.6"
   },
   "devDependencies": {
+    "@tamagui/babel-plugin": "^1.138.6",
     "@types/react": "~19.1.0",
     "babel-preset-expo": "^54.0.7",
     "typescript": "~5.9.2"

@@ -2,9 +2,9 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import * as Localization from 'expo-localization';
 
-// Import translations
-import en from './locales/en.json';
-import nl from './locales/nl.json';
+// Import translations (TypeScript files)
+import en from './locales/en';
+import nl from './locales/nl';
 
 // Get device language
 const deviceLanguage = Localization.getLocales()[0]?.languageCode || 'en';

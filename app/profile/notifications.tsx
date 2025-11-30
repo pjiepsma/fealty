@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
-import { Ionicons } from '@expo/vector-icons';
+import { MapPin, CheckCircle, Trophy, Zap, Users, Award } from '@tamagui/lucide-icons';
 
 interface Notification {
   id: string;
@@ -52,27 +52,15 @@ export default function NotificationCenterScreen() {
     },
   ]);
 
-  const getIconName = (type: string): keyof typeof Ionicons.glyphMap => {
+  const getIcon = (type: string) => {
     switch (type) {
-      case 'poi': return 'location';
-      case 'capture': return 'checkmark-circle';
-      case 'king': return 'trophy';
-      case 'challenge': return 'flash';
-      case 'friend': return 'people';
-      case 'leaderboard': return 'podium';
-      default: return 'notifications';
-    }
-  };
-
-  const getIconColor = (type: string): string => {
-    switch (type) {
-      case 'poi': return '#4CAF50';
-      case 'capture': return '#2196F3';
-      case 'king': return '#FFD700';
-      case 'challenge': return '#FF9800';
-      case 'friend': return '#9C27B0';
-      case 'leaderboard': return '#F44336';
-      default: return '#999';
+      case 'poi': return MapPin;
+      case 'capture': return CheckCircle;
+      case 'king': return Trophy;
+      case 'challenge': return Zap;
+      case 'friend': return Users;
+      case 'leaderboard': return Award;
+      default: return MapPin;
     }
   };
 
@@ -110,15 +98,17 @@ export default function NotificationCenterScreen() {
     setNotifications([]);
   };
 
-  const renderNotification = ({ item }: { item: Notification }) => (
-    <TouchableOpacity
-      style={[styles.notificationCard, !item.read && styles.unreadCard]}
-      onPress={() => markAsRead(item.id)}
-      activeOpacity={0.7}
-    >
-      <View style={[styles.iconContainer, { backgroundColor: getIconColor(item.type) + '20' }]}>
-        <Ionicons name={getIconName(item.type)} size={24} color={getIconColor(item.type)} />
-      </View>
+  const renderNotification = ({ item }: { item: Notification }) => {
+    const IconComponent = getIcon(item.type);
+    return (
+      <TouchableOpacity
+        style={[styles.notificationCard, !item.read && styles.unreadCard]}
+        onPress={() => markAsRead(item.id)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.iconContainer}>
+          <IconComponent size={24} color="#8B6914" />
+        </View>
       
       <View style={styles.notificationContent}>
         <View style={styles.notificationHeader}>
@@ -129,12 +119,13 @@ export default function NotificationCenterScreen() {
         <Text style={styles.notificationTime}>{formatTimestamp(item.timestamp)}</Text>
       </View>
     </TouchableOpacity>
-  );
+    );
+  };
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
         <View>
@@ -153,7 +144,7 @@ export default function NotificationCenterScreen() {
               </TouchableOpacity>
             )}
             <TouchableOpacity style={styles.headerButton} onPress={clearAll}>
-              <Ionicons name="trash-outline" size={20} color="#ff4444" />
+              <Text style={styles.headerButtonText}>{t('notifications.clearAll')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -162,7 +153,6 @@ export default function NotificationCenterScreen() {
       {/* Notifications List */}
       {notifications.length === 0 ? (
         <View style={styles.emptyState}>
-          <Ionicons name="notifications-off" size={64} color="#3a3a3a" />
           <Text style={styles.emptyTitle}>{t('notifications.empty.title')}</Text>
           <Text style={styles.emptyMessage}>{t('notifications.empty.message')}</Text>
         </View>
@@ -182,7 +172,7 @@ export default function NotificationCenterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#0a0a0a',
   },
   header: {
     flexDirection: 'row',
@@ -199,7 +189,7 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#4CAF50',
+    color: '#8B6914',
     marginTop: 4,
   },
   headerActions: {
@@ -211,7 +201,7 @@ const styles = StyleSheet.create({
   },
   headerButtonText: {
     fontSize: 14,
-    color: '#4CAF50',
+    color: '#8B6914',
     fontWeight: '500',
   },
   listContent: {
@@ -219,15 +209,17 @@ const styles = StyleSheet.create({
   },
   notificationCard: {
     flexDirection: 'row',
-    backgroundColor: '#2a2a2a',
+    backgroundColor: '#151515',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#1a1a1a',
   },
   unreadCard: {
-    backgroundColor: '#2a3a2a',
+    backgroundColor: '#151515',
     borderLeftWidth: 3,
-    borderLeftColor: '#4CAF50',
+    borderLeftColor: '#8B6914',
   },
   iconContainer: {
     width: 48,
@@ -236,6 +228,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    backgroundColor: '#1a1a1a',
   },
   notificationContent: {
     flex: 1,
@@ -255,7 +248,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#8B6914',
     marginLeft: 8,
   },
   notificationMessage: {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { PointAnnotation, Callout } from '@rnmapbox/maps';
+import { PointAnnotation } from '@rnmapbox/maps';
 import { POI } from '@/types';
 import { POI_CATEGORIES } from '@/constants/config';
 import {
@@ -15,6 +15,7 @@ import {
 interface POIMarkerProps {
   poi: POI;
   size?: number;
+  onSelect?: () => void;
 }
 
 /**
@@ -67,7 +68,7 @@ function POIIcon({ type, size }: { type: string; size: number }) {
  * POI Marker Component
  * Renders a single POI on the map with appropriate icon, colors, and callout
  */
-export function POIMarker({ poi, size = 20 }: POIMarkerProps) {
+export function POIMarker({ poi, size = 20, onSelect }: POIMarkerProps) {
   return (
     <PointAnnotation
       key={poi.id}
@@ -75,10 +76,10 @@ export function POIMarker({ poi, size = 20 }: POIMarkerProps) {
       coordinate={poi.coordinates}
       onSelected={() => {
         console.log('✅ POI Selected:', poi.name);
+        onSelect?.();
       }}
     >
       <POIIcon type={poi.type} size={size} />
-      <Callout title={poi.name} />
     </PointAnnotation>
   );
 }

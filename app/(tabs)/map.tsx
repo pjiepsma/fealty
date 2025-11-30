@@ -20,9 +20,12 @@ import { POIMarker } from '@/components/map/POIMarker';
 import { MapControls } from '@/components/map/MapControls';
 import { CaptureTimer } from '@/components/map/CaptureTimer';
 import { RadiusCircle } from '@/components/map/RadiusCircle';
+import { POIDrawer } from '@/components/map/POIDrawer';
 import { POI } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { ClaimService } from '@/services/claim.service';
+import { useLocalSearchParams } from 'expo-router';
+import { supabase } from '@/services/supabase';
 
 const { CLAIM_RADIUS } = CLAIM_CONSTANTS;
 
@@ -33,6 +36,9 @@ export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [followMode, setFollowMode] = useState<UserTrackingMode>(UserTrackingMode.Follow);
+  
+  // Get navigation params
+  const params = useLocalSearchParams<{ poiId?: string }>();
   
   // ========================================
   // STATE MANAGEMENT
@@ -48,6 +54,17 @@ export default function MapScreen() {
   const [activePOI, setActivePOI] = useState<POI | null>(null);
   const [isInsideRadius, setIsInsideRadius] = useState(false);
   const [distanceToActivePOI, setDistanceToActivePOI] = useState<number | null>(null);
+  
+  // Selected POI for drawer
+  const [selectedPOI, setSelectedPOI] = useState<POI | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  
+  // State for POI navigation from Personal tab
+  const [navigateToPOI, setNavigateToPOI] = useState<POI | null>(null);
+  
+  // Camera state for programmatic control
+  const [cameraCenter, setCameraCenter] = useState<[number, number] | null>(null);
+  const [cameraZoom, setCameraZoom] = useState<number | null>(null);
   
   // Use game mechanics hook
   const saveClaimCallback = useCallback((secondsEarned: number) => {
@@ -191,6 +208,60 @@ export default function MapScreen() {
     };
   }, []);
 
+  // Fetch POI by ID when navigated from Personal tab
+  useEffect(() => {
+    if (params.poiId && !navigateToPOI) {
+      fetchPOIById(params.poiId);
+    }
+  }, [params.poiId]);
+
+  const fetchPOIById = async (poiId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('pois')
+        .select('*')
+        .eq('id', poiId)
+        .single();
+      
+      if (error) throw error;
+      
+      if (data) {
+        // Convert database POI to POI type
+        const poi: POI = {
+          id: data.id,
+          name: data.name,
+          coordinates: [data.longitude, data.latitude],
+          latitude: data.latitude,
+          longitude: data.longitude,
+          type: data.type as any,
+          category: data.category,
+          createdAt: data.created_at,
+        };
+        
+        setNavigateToPOI(poi);
+        
+        // Pan camera to POI by updating camera state
+        setCameraCenter(poi.coordinates);
+        setCameraZoom(16);
+        
+        // Open drawer after a short delay to allow camera animation
+        setTimeout(() => {
+          setSelectedPOI(poi);
+          setIsDrawerOpen(true);
+          // Clear navigation state after opening drawer
+          setNavigateToPOI(null);
+          // Reset camera control after animation
+          setTimeout(() => {
+            setCameraCenter(null);
+            setCameraZoom(null);
+          }, 1000);
+        }, 500);
+      }
+    } catch (error) {
+      console.error('Error fetching POI:', error);
+    }
+  };
+
   // Check if user is inside radius of any POI
   useEffect(() => {
     if (!userLocation || pois.length === 0) return;
@@ -236,10 +307,10 @@ export default function MapScreen() {
     <SafeAreaView style={styles.container} edges={[]}>
       <MapView 
         style={styles.map}
+        styleURL="mapbox://styles/mapbox/outdoors-v12"
         scaleBarEnabled={true}
         scaleBarPosition={{ top: insets.top + 10, left: 16 }}
-        compassEnabled={true}
-        compassPosition={{ top: insets.top + 10, right: 16 }}
+        compassEnabled={false}
       >
         <Images>
           <Image name="topImage">
@@ -266,12 +337,15 @@ export default function MapScreen() {
         </Images>
         <Camera
           defaultSettings={{
-            centerCoordinate: [-77.036086, 38.910233],
-            zoomLevel: 14,
+            centerCoordinate: cameraCenter || [-77.036086, 38.910233],
+            zoomLevel: cameraZoom || 14,
           }}
-          followUserLocation={true}
+          centerCoordinate={cameraCenter || undefined}
+          zoomLevel={cameraZoom || undefined}
+          followUserLocation={!navigateToPOI && !cameraCenter}
           followUserMode={followMode}
           followZoomLevel={14}
+          animationDuration={cameraCenter ? 1000 : 0}
         />
         <LocationPuck
           topImage="topImage"
@@ -297,7 +371,15 @@ export default function MapScreen() {
         
         {/* Real POIs from OpenStreetMap */}
         {pois.map((poi) => (
-          <POIMarker key={poi.id} poi={poi} size={14} />
+          <POIMarker 
+            key={poi.id} 
+            poi={poi} 
+            size={14}
+            onSelect={() => {
+              setSelectedPOI(poi);
+              setIsDrawerOpen(true);
+            }}
+          />
         ))}
       </MapView>
       
@@ -325,6 +407,16 @@ export default function MapScreen() {
         followMode={followMode}
         onToggle={toggleFollowMode}
         topInset={insets.top}
+      />
+      
+      {/* POI Drawer */}
+      <POIDrawer
+        poi={selectedPOI}
+        isOpen={isDrawerOpen}
+        onClose={() => {
+          setIsDrawerOpen(false);
+          setSelectedPOI(null);
+        }}
       />
     </SafeAreaView>
   );

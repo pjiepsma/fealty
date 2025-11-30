@@ -1,12 +1,17 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { TamaguiProvider } from 'tamagui';
+import { PortalProvider } from '@tamagui/portal';
 import { AuthProvider } from '@/hooks/useAuth';
+import config from '@/tamagui.config';
 import '@/i18n'; // Initialize i18n
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <StatusBar style="light" />
+    <TamaguiProvider config={config} defaultTheme="dark">
+      <PortalProvider>
+        <AuthProvider>
+          <StatusBar style="light" backgroundColor="#0a0a0a" />
       <Stack
         screenOptions={{
           headerStyle: {
@@ -76,7 +81,16 @@ export default function RootLayout() {
             headerShown: true,
           }} 
         />
+        <Stack.Screen 
+          name="profile/general-settings" 
+          options={{ 
+            title: 'General',
+            headerShown: true,
+          }} 
+        />
       </Stack>
-    </AuthProvider>
+        </AuthProvider>
+      </PortalProvider>
+    </TamaguiProvider>
   );
 }

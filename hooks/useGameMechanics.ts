@@ -35,7 +35,8 @@ export function useGameMechanics({ isInsideRadius, activePOI, userId, onSaveClai
   // Yellow arc animation when entering radius
   // ========================================
   useEffect(() => {
-    if (isInsideRadius && !isCaptureActive && entryProgress === 0) {
+    // Start entry animation when entering radius
+    if (isInsideRadius && !isCaptureActive && entryProgress === 0 && !entryAnimationRef.current) {
       console.log('🚪 ENTRY MODE started (10 seconds)...');
       
       const startTime = Date.now();
@@ -52,6 +53,7 @@ export function useGameMechanics({ isInsideRadius, activePOI, userId, onSaveClai
           // Entry complete → fetch daily seconds then start capture mode
           console.log('✅ ENTRY complete → Starting CAPTURE mode');
           setEntryProgress(1);
+          entryAnimationRef.current = null;
           
           // Fetch how many seconds user already claimed today at this POI
           if (userId && activePOI) {
@@ -78,8 +80,6 @@ export function useGameMechanics({ isInsideRadius, activePOI, userId, onSaveClai
           } else {
             setIsCaptureActive(true);
           }
-          
-          entryAnimationRef.current = null;
         }
       };
       
@@ -87,27 +87,39 @@ export function useGameMechanics({ isInsideRadius, activePOI, userId, onSaveClai
     } else if (!isInsideRadius) {
       // User left radius → reset everything
       console.log('❌ Left radius → Resetting all modes');
-      setEntryProgress(0);
-      setIsCaptureActive(false);
       if (entryAnimationRef.current) {
         cancelAnimationFrame(entryAnimationRef.current);
         entryAnimationRef.current = null;
       }
+      setEntryProgress(0);
+      setIsCaptureActive(false);
     }
     
-    // NO cleanup function - let animation run to completion
-  }, [isInsideRadius, isCaptureActive, entryProgress, activePOI, userId]);
+    // Cleanup: cancel animation if component unmounts or dependencies change
+    return () => {
+      if (entryAnimationRef.current) {
+        cancelAnimationFrame(entryAnimationRef.current);
+        entryAnimationRef.current = null;
+      }
+    };
+  }, [isInsideRadius, isCaptureActive, activePOI, userId]); // Removed entryProgress from dependencies
   
   // ========================================
   // PHASE 2: CAPTURE MODE (starts after entry completes)
   // Timer counts from 0:00 to 1:00 (60 seconds max)
   // ========================================
+  // Use a ref to track session seconds without causing re-renders
+  const sessionSecondsRef = useRef(0);
+  
   useEffect(() => {
     if (isCaptureActive && !captureIntervalRef.current) {
       console.log('🎯 CAPTURE MODE started');
       
       // Record capture start time
       captureStartTimeRef.current = new Date();
+      
+      // Reset session seconds ref
+      sessionSecondsRef.current = 0;
       
       // Start timer from daily seconds already claimed
       setCaptureSeconds(dailySecondsForActivePOI);
@@ -132,6 +144,9 @@ export function useGameMechanics({ isInsideRadius, activePOI, userId, onSaveClai
           // Update session seconds (real time + bonuses)
           setSessionSeconds((prevSeconds) => {
             const newSessionSeconds = prevSeconds + 1 + bonusSeconds;
+            // Update ref with latest value
+            sessionSecondsRef.current = newSessionSeconds;
+            
             if (bonusSeconds > 0) {
               console.log(`⏱️ Session: ${newSeconds}s captured = ${newSessionSeconds}s earned (${Math.floor(newSeconds / 60)} minute bonus)`);
             }
@@ -161,11 +176,14 @@ export function useGameMechanics({ isInsideRadius, activePOI, userId, onSaveClai
       // Stop capture and save seconds
       console.log('⏹️ CAPTURE MODE stopped');
       
+      // Use ref value to avoid dependency on sessionSeconds state
+      const finalSessionSeconds = sessionSecondsRef.current;
+      
       // Save session seconds to total
-      if (sessionSeconds > 0) {
+      if (finalSessionSeconds > 0) {
         setTotalCapturedSeconds((prev) => {
-          const newTotal = prev + sessionSeconds;
-          console.log(`💾 Saved ${sessionSeconds}s this session. Total: ${newTotal}s`);
+          const newTotal = prev + finalSessionSeconds;
+          console.log(`💾 Saved ${finalSessionSeconds}s this session. Total: ${newTotal}s`);
           return newTotal;
         });
       }
@@ -175,27 +193,32 @@ export function useGameMechanics({ isInsideRadius, activePOI, userId, onSaveClai
       setCaptureSeconds(0);
       setSessionSeconds(0);
       setDailySecondsForActivePOI(0);
+      sessionSecondsRef.current = 0;
     }
     
     return () => {
       if (captureIntervalRef.current) {
         clearInterval(captureIntervalRef.current);
+        captureIntervalRef.current = null;
       }
     };
-  }, [isCaptureActive, dailySecondsForActivePOI, sessionSeconds, onSaveClaim]);
+  }, [isCaptureActive, dailySecondsForActivePOI, onSaveClaim]); // Removed sessionSeconds from dependencies
 
   // Handle leaving radius during capture
   useEffect(() => {
     if (!isInsideRadius && isCaptureActive) {
       console.log('❌ Left radius during CAPTURE mode');
       
+      // Use ref value to avoid dependency on sessionSeconds state
+      const currentSessionSeconds = sessionSecondsRef.current;
+      
       // Save claim to database
-      if (sessionSeconds > 0) {
-        onSaveClaim(sessionSeconds);
+      if (currentSessionSeconds > 0) {
+        onSaveClaim(currentSessionSeconds);
         
         setTotalCapturedSeconds((prev) => {
-          const newTotal = prev + sessionSeconds;
-          console.log(`💾 Session ended: +${sessionSeconds}s`);
+          const newTotal = prev + currentSessionSeconds;
+          console.log(`💾 Session ended: +${currentSessionSeconds}s`);
           console.log(`⏱️ Total captured: ${newTotal}s`);
           return newTotal;
         });
@@ -203,7 +226,7 @@ export function useGameMechanics({ isInsideRadius, activePOI, userId, onSaveClai
       
       setIsCaptureActive(false);
     }
-  }, [isInsideRadius, isCaptureActive, sessionSeconds, onSaveClaim]);
+  }, [isInsideRadius, isCaptureActive, onSaveClaim]); // Removed sessionSeconds from dependencies
 
   return {
     // Entry mode
