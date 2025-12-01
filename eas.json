@@ -6,7 +6,13 @@
   "build": {
     "internal": {
       "android": {
-        "buildType": "app-bundle"
+        "buildType": "app-bundle",
+        "env": {
+          "EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN": "pk.eyJ1IjoicGllcnJpb3VzIiwiYSI6ImNtaWh5MHdrdTA0NWQzbXI0b2Q2eHdwcDAifQ.O76rOrvEptCsC1VvQqomvA",
+          "EXPO_PUBLIC_SUPABASE_URL": "https://mcgtdqfounhftanjcjym.supabase.co",
+          "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_csThljEM1CvahtHuQaFuDA_Z_Wyf3hL",
+          "RNMAPBOX_MAPS_DOWNLOAD_TOKEN": "sk.eyJ1IjoicGllcnJpb3VzIiwiYSI6ImNtaWh5NXZlaDBsaG4zZXM2MHh0ZzlvNmIifQ.FrT2LTUjvbolw-Hk6XyRoA"
+        }
       }
     },
     "preview": {
@@ -28,4 +34,3 @@
     }
   }
 }
-
