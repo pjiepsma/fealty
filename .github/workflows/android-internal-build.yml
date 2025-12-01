@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - staging
 
 jobs:
   build:
@@ -56,6 +57,7 @@ jobs:
           path: ${{ github.workspace }}/android/app/build/outputs/mapping/release/mapping.txt
 
       - name: Submit to Play Store Internal Testing
+        if: github.ref == 'refs/heads/main'
         run: eas submit --platform android --path ${{ github.workspace }}/app-internal.aab --profile production --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
