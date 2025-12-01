@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Fealty",
-    "slug": "fealty-app",
+    "slug": "fealty",
     "version": "1.0.0",
     "scheme": "fealty-app",
     "orientation": "portrait",
@@ -26,17 +26,19 @@
         "backgroundColor": "#0a0a0a"
       },
       "package": "com.fealty.app",
+      "versionCode": 1,
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION"
-      ]
+      ],
+      "blockedPermissions": []
     },
     "plugins": [
       [
         "@rnmapbox/maps",
         {
-          "RNMapboxMapsImpl": "mapbox",
+          "RNMapboxMapsImpl": "mapbox"
         }
       ],
       [
@@ -46,6 +48,13 @@
         }
       ],
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "2be48c14-ede8-4e50-9f3b-3803faddce24"
+      }
+    },
+    "owner": "iepsma"
   }
 }
