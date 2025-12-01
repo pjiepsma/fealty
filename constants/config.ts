@@ -1,6 +1,7 @@
 // Core game mechanics
 export const CLAIM_CONSTANTS = {
-  ENTRY_DURATION: 10, // seconds (entry mode duration before capture starts)
+  ENTRY_DURATION: 60, // seconds (entry mode duration before capture starts for normal users)
+  KING_ENTRY_DURATION: 25, // seconds (entry mode duration for the king of the POI)
   CLAIM_RADIUS: 220, // meters (detection radius around POI)
   MAX_CAPTURE_SECONDS: 60, // Maximum seconds per capture session
 };

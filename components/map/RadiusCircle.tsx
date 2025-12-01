@@ -9,14 +9,17 @@ interface RadiusCircleProps {
   coordinates: [number, number];
   entryProgress: number;
   isCaptureActive: boolean;
+  isKing?: boolean;
 }
 
-export function RadiusCircle({ coordinates, entryProgress, isCaptureActive }: RadiusCircleProps) {
+export function RadiusCircle({ coordinates, entryProgress, isCaptureActive, isKing = false }: RadiusCircleProps) {
   const [lng, lat] = coordinates;
   const circlePolygonCoords = generateCirclePolygon(lng, lat, CLAIM_RADIUS);
   
-  // Generate yellow entry progress arc (0-100% during entry mode)
+  // Generate entry progress arc (0-100% during entry mode)
+  // Use gold color for king, yellow for normal users
   const entryArcCoords = generateProgressArc(lng, lat, CLAIM_RADIUS, entryProgress);
+  const entryColor = isKing ? '#FFD700' : '#FFC107'; // Gold for king, yellow for normal
 
   return (
     <>
@@ -35,14 +38,14 @@ export function RadiusCircle({ coordinates, entryProgress, isCaptureActive }: Ra
         <FillLayer
           id="radius-circle-fill"
           style={{
-            fillColor: isCaptureActive ? '#4CAF50' : '#FFC107',
+            fillColor: isCaptureActive ? '#4CAF50' : (isKing ? '#FFD700' : '#FFC107'),
             fillOpacity: 0.2,
           }}
         />
         <LineLayer
           id="radius-circle-line"
           style={{
-            lineColor: isCaptureActive ? '#4CAF50' : '#FFC107',
+            lineColor: isCaptureActive ? '#4CAF50' : (isKing ? '#FFD700' : '#FFC107'),
             lineWidth: 3,
           }}
         />
@@ -64,8 +67,8 @@ export function RadiusCircle({ coordinates, entryProgress, isCaptureActive }: Ra
           <LineLayer
             id="entry-arc-line"
             style={{
-              lineColor: '#FFC107',
-              lineWidth: 6,
+              lineColor: entryColor,
+              lineWidth: isKing ? 8 : 6, // Thicker line for king
               lineCap: 'round',
               lineJoin: 'round',
             }}

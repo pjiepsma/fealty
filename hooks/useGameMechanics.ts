@@ -4,7 +4,7 @@ import { ClaimService } from '@/services/claim.service';
 import { POI } from '@/types';
 import { CLAIM_CONSTANTS, REWARD_SYSTEM } from '@/constants/config';
 
-const { ENTRY_DURATION } = CLAIM_CONSTANTS;
+const { ENTRY_DURATION, KING_ENTRY_DURATION } = CLAIM_CONSTANTS;
 const { MINUTE_BONUS_SECONDS } = REWARD_SYSTEM;
 
 interface UseGameMechanicsProps {
@@ -15,9 +15,11 @@ interface UseGameMechanicsProps {
 }
 
 export function useGameMechanics({ isInsideRadius, activePOI, userId, onSaveClaim }: UseGameMechanicsProps) {
-  // Entry mode state (10-second yellow arc animation)
+  // Entry mode state (yellow arc animation)
   const [entryProgress, setEntryProgress] = useState(0);
   const entryAnimationRef = useRef<number | null>(null);
+  const [isKing, setIsKing] = useState(false);
+  const [entryDuration, setEntryDuration] = useState(ENTRY_DURATION);
 
   // Capture mode state
   const [isCaptureActive, setIsCaptureActive] = useState(false);
@@ -31,59 +33,72 @@ export function useGameMechanics({ isInsideRadius, activePOI, userId, onSaveClai
   const captureIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // ========================================
-  // PHASE 1: ENTRY MODE (10 seconds)
+  // PHASE 1: ENTRY MODE (60 seconds normal, 25 seconds for king)
   // Yellow arc animation when entering radius
   // ========================================
   useEffect(() => {
-    // Start entry animation when entering radius
-    if (isInsideRadius && !isCaptureActive && entryProgress === 0 && !entryAnimationRef.current) {
-      console.log('🚪 ENTRY MODE started (10 seconds)...');
-      
-      const startTime = Date.now();
-      const duration = ENTRY_DURATION * 1000; // 10 seconds
-      
-      const animate = () => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        setEntryProgress(progress);
+    // Check if user is king when entering radius, then start entry animation
+    if (isInsideRadius && !isCaptureActive && entryProgress === 0 && !entryAnimationRef.current && activePOI && userId) {
+      // First check if user is king
+      ClaimService.isUserKingOfPOI(userId, activePOI.id).then((kingStatus) => {
+        setIsKing(kingStatus);
+        const duration = kingStatus ? KING_ENTRY_DURATION : ENTRY_DURATION;
+        setEntryDuration(duration);
         
-        if (progress < 1) {
-          entryAnimationRef.current = requestAnimationFrame(animate);
-        } else {
-          // Entry complete → fetch daily seconds then start capture mode
-          console.log('✅ ENTRY complete → Starting CAPTURE mode');
-          setEntryProgress(1);
-          entryAnimationRef.current = null;
-          
-          // Fetch how many seconds user already claimed today at this POI
-          if (userId && activePOI) {
-            ClaimService.getDailySecondsForPOI(userId, activePOI.id).then((seconds) => {
-              console.log(`📊 Already claimed ${seconds}s today at this POI`);
-              setDailySecondsForActivePOI(seconds);
-              
-              if (seconds >= 60) {
-                console.log('⚠️ Daily limit reached (60s) - cannot capture more');
-                
-                // Show alert to user
-                Alert.alert(
-                  '✅ Daily Limit Reached',
-                  `You've already claimed 60 seconds at ${activePOI.name} today.\n\nCome back tomorrow to earn more!`,
-                  [{ text: 'OK' }]
-                );
-                
-                // Don't start capture mode
-              } else {
-                setIsCaptureActive(true);
-                console.log(`🎯 You have ${60 - seconds}s remaining today`);
-              }
-            });
-          } else {
-            setIsCaptureActive(true);
-          }
+        if (kingStatus) {
+          console.log('👑 The land recognizes its ruler... Entry timer reduced to 25s');
         }
-      };
+        
+        // Now start the entry animation with the correct duration
+        const durationText = kingStatus ? `${KING_ENTRY_DURATION} seconds (King)` : `${ENTRY_DURATION} seconds`;
+        console.log(`🚪 ENTRY MODE started (${durationText})...`);
+        
+        const startTime = Date.now();
+        const durationMs = duration * 1000;
       
-      entryAnimationRef.current = requestAnimationFrame(animate);
+        const animate = () => {
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(elapsed / durationMs, 1);
+          setEntryProgress(progress);
+          
+          if (progress < 1) {
+            entryAnimationRef.current = requestAnimationFrame(animate);
+          } else {
+            // Entry complete → fetch daily seconds then start capture mode
+            console.log('✅ ENTRY complete → Starting CAPTURE mode');
+            setEntryProgress(1);
+            entryAnimationRef.current = null;
+            
+            // Fetch how many seconds user already claimed today at this POI
+            if (userId && activePOI) {
+              ClaimService.getDailySecondsForPOI(userId, activePOI.id).then((seconds) => {
+                console.log(`📊 Already claimed ${seconds}s today at this POI`);
+                setDailySecondsForActivePOI(seconds);
+                
+                if (seconds >= 60) {
+                  console.log('⚠️ Daily limit reached (60s) - cannot capture more');
+                  
+                  // Show alert to user
+                  Alert.alert(
+                    '✅ Daily Limit Reached',
+                    `You've already claimed 60 seconds at ${activePOI.name} today.\n\nCome back tomorrow to earn more!`,
+                    [{ text: 'OK' }]
+                  );
+                  
+                  // Don't start capture mode
+                } else {
+                  setIsCaptureActive(true);
+                  console.log(`🎯 You have ${60 - seconds}s remaining today`);
+                }
+              });
+            } else {
+              setIsCaptureActive(true);
+            }
+          }
+        };
+        
+        entryAnimationRef.current = requestAnimationFrame(animate);
+      });
     } else if (!isInsideRadius) {
       // User left radius → reset everything
       console.log('❌ Left radius → Resetting all modes');
@@ -93,6 +108,8 @@ export function useGameMechanics({ isInsideRadius, activePOI, userId, onSaveClai
       }
       setEntryProgress(0);
       setIsCaptureActive(false);
+      setIsKing(false);
+      setEntryDuration(ENTRY_DURATION);
     }
     
     // Cleanup: cancel animation if component unmounts or dependencies change
@@ -102,7 +119,7 @@ export function useGameMechanics({ isInsideRadius, activePOI, userId, onSaveClai
         entryAnimationRef.current = null;
       }
     };
-  }, [isInsideRadius, isCaptureActive, activePOI, userId]); // Removed entryProgress from dependencies
+  }, [isInsideRadius, isCaptureActive, activePOI, userId]);
   
   // ========================================
   // PHASE 2: CAPTURE MODE (starts after entry completes)
@@ -231,6 +248,8 @@ export function useGameMechanics({ isInsideRadius, activePOI, userId, onSaveClai
   return {
     // Entry mode
     entryProgress,
+    isKing,
+    entryDuration,
     
     // Capture mode
     isCaptureActive,

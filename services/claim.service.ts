@@ -4,6 +4,37 @@ import { getCurrentMonth } from '@/utils/date';
 import { POIService } from './poi.service';
 
 export class ClaimService {
+  // Check if user is the king (has most seconds) of a POI
+  static async isUserKingOfPOI(userId: string, poiId: string): Promise<boolean> {
+    const { data: claims, error } = await supabase
+      .from('claims')
+      .select('user_id, seconds_earned')
+      .eq('poi_id', poiId);
+
+    if (error || !claims || claims.length === 0) {
+      return false;
+    }
+
+    // Group by user and sum seconds
+    const userSecondsMap = new Map<string, number>();
+    claims.forEach((claim: any) => {
+      const current = userSecondsMap.get(claim.user_id) || 0;
+      userSecondsMap.set(claim.user_id, current + claim.seconds_earned);
+    });
+
+    // Find king (user with most seconds)
+    let maxSeconds = 0;
+    let kingUserId: string | null = null;
+    userSecondsMap.forEach((seconds, uid) => {
+      if (seconds > maxSeconds) {
+        maxSeconds = seconds;
+        kingUserId = uid;
+      }
+    });
+
+    return kingUserId === userId;
+  }
+
   // Check if user has already completed their daily claim for this POI
   static async getDailySecondsForPOI(userId: string, poiId: string): Promise<number> {
     const today = new Date();

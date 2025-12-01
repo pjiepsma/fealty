@@ -73,6 +73,8 @@ export default function MapScreen() {
   
   const {
     entryProgress,
+    isKing,
+    entryDuration,
     isCaptureActive,
     captureSeconds,
     sessionSeconds,
@@ -364,6 +366,7 @@ export default function MapScreen() {
             coordinates={activePOI.coordinates}
             entryProgress={entryProgress}
             isCaptureActive={isCaptureActive}
+            isKing={isKing}
           />
         )}
         
@@ -396,6 +399,11 @@ export default function MapScreen() {
           <Text style={styles.statusText}>
             {isInsideRadius ? `✅ Inside ${activePOI.name}` : `❌ Outside ${activePOI.name}`}
           </Text>
+          {isInsideRadius && isKing && entryProgress < 1 && (
+            <Text style={[styles.statusText, { fontSize: 12, marginTop: 4, color: '#FFD700', fontWeight: 'bold' }]}>
+              👑 The land recognizes its ruler... Entry timer: {entryDuration}s
+            </Text>
+          )}
           <Text style={[styles.statusText, { fontSize: 12, marginTop: 4, opacity: 0.8 }]}>
             Distance: {distanceToActivePOI.toFixed(1)}m / {CLAIM_RADIUS}m
           </Text>
