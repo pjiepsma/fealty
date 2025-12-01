@@ -6,34 +6,65 @@ A location-based mobile game where players claim physical Points of Interest by 
 
 ## 🎮 Core Game Mechanic
 
-### Entry Mode (10 seconds)
-Walk into a POI's radius → **Yellow progress arc** appears → Complete 10 seconds
+### Entry Mode
+Walk into a POI's radius → **Progress arc** appears → Complete entry timer
+- **Normal users**: 60 seconds entry timer
+- **👑 Kings**: 25 seconds entry timer (the land recognizes its ruler!)
 
 ### Capture Mode (up to 60 seconds)
-Timer starts counting → Earn 1 second per second → **Bonus: +10 seconds for completing a full minute!**
+After entry completes → Timer starts counting → Earn 1 second per second → **Bonus: +10 seconds for completing a full minute!**
 
 **Leave the radius?** Your captured time is saved for the leaderboard!
 
 ## 🚀 Features
 
-- **🎯 Two-Phase Capture System** - Entry mode (10s) → Capture mode (60s max)
+### Core Gameplay
+- **🎯 Two-Phase Capture System** - Entry mode (60s normal / 25s for kings) → Capture mode (60s max)
+- **👑 King Bonus** - Kings get reduced entry timer with visual gold feedback
 - **⏱️ Real-time Timer** - Watch your captured seconds grow
 - **🎁 Minute Bonus** - Complete 60 seconds for +10 bonus seconds!
-- **🗺️ Real POI Data** - Fetches castles, windmills, museums, parks from OpenStreetMap
+- **📊 Crown System** - Rankings based on number of POIs where you're king (crowns)
+- **📅 Seasonal & Lifetime Rankings** - Compete monthly or see all-time stats
+- **🔍 Search & Find Me** - Find yourself or other players in rankings
+- **👤 Personal Tab** - View all your captured POIs with king status
+
+### Rankings System
+- **City, Country, World** rankings (City first, World last)
+- **Seasonal** (monthly) and **Lifetime** views
+- **Crown-based** - Ranked by number of POIs where you're king
+- **User search** - Find and scroll to specific users
+- **Find Me** button - Quickly locate yourself in the rankings
+
+### Map & POIs
+- **🗺️ Real POI Data** - Fetches parks, museums, historic sites, churches from OpenStreetMap
 - **📍 10km Discovery Radius** - Find POIs within 10km of your location
-- **🎨 Custom Polygon Icons** - Beautiful castle, windmill, and other icons
-- **🌙 Dark Mode Maps** - Stunning Mapbox styling
+- **🎨 Custom Icons** - Beautiful POI markers on the map
+- **🌙 Dark Mode Maps** - Stunning Mapbox outdoors style
+- **📱 POI Drawer** - Tap POIs to see details
+
+### Social & Profile
 - **🔐 Authentication** - Secure sign up/login with Supabase
-- **👤 User Profiles** - Track your stats and achievements
+- **👤 User Profiles** - Track your stats, total seconds, and POIs claimed
+- **🌍 Multi-language** - English and Nederlands (Dutch) support
+- **⚙️ Settings** - Notification preferences and language selection
+
+### Game Balance
+- **📉 Daily Decay** - All players lose 10% of their time daily at midnight (keeps locations dynamic)
+- **⏰ Daily Cap** - 60 seconds max per POI per day (prevents camping, encourages variety)
+- **🎯 Claim Radius** - 220 meters (you're there, not just nearby)
 
 ## 📱 Tech Stack
 
 - **Frontend**: React Native + Expo
+- **UI Framework**: Tamagui (styled components)
 - **Maps**: Mapbox GL + OpenStreetMap (Overpass API)
 - **Backend**: Supabase (PostgreSQL + Auth)
 - **Location**: Expo Location API
 - **Animations**: React Native Reanimated
-- **Authentication**: Supabase Auth
+- **i18n**: react-i18next (English/Nederlands)
+- **Routing**: Expo Router
+- **Build**: EAS Build
+- **CI/CD**: GitHub Actions
 
 ## 🛠️ Setup Instructions
 
@@ -44,7 +75,7 @@ Timer starts counting → Earn 1 second per second → **Bonus: +10 seconds for 
 node --version
 
 # Install Expo CLI
-npm install -g expo-cli
+npm install -g expo-cli eas-cli
 ```
 
 ### 2. Clone & Install
@@ -57,7 +88,7 @@ npm install
 
 ### 3. Configure Environment Variables
 
-Create a `.env` file (copy from `.env.example`):
+Create a `.env` file in the project root:
 
 ```env
 EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN=your_mapbox_token_here
@@ -65,14 +96,17 @@ EXPO_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your_anon_key_here
 ```
 
-**Get Mapbox Token:** [https://account.mapbox.com/access-tokens/](https://account.mapbox.com/access-tokens/)
-**Get Supabase Keys:** See `AUTHENTICATION_SETUP.md` for detailed instructions
+**Get Mapbox Token:** [https://account.mapbox.com/access-tokens/](https://account.mapbox.com/access-tokens/)  
+**Get Supabase Keys:** Go to your Supabase project → Settings → API
 
 ### 4. Set Up Supabase Database
 
 1. Create a Supabase project at [https://supabase.com](https://supabase.com)
 2. Run the SQL from `database/schema.sql` in the Supabase SQL Editor
-3. Follow the complete guide in `AUTHENTICATION_SETUP.md`
+3. Set up the daily decay function:
+   - Run `database/decay_function.sql` in Supabase SQL Editor
+   - Enable pg_cron extension: `CREATE EXTENSION IF NOT EXISTS pg_cron;`
+   - Schedule the decay job: See instructions in `decay_function.sql`
 
 ### 5. Run the App
 
@@ -88,86 +122,6 @@ npx expo start --android
 
 # Scan QR code with Expo Go app for physical device
 ```
-```
-
-### 3. Get API Keys
-
-#### Mapbox Token
-1. Go to [https://account.mapbox.com/](https://account.mapbox.com/)
-2. Create account / Login
-3. Create a new access token
-4. Copy the token
-
-#### Supabase Setup
-1. Go to [https://supabase.com/dashboard](https://supabase.com/dashboard)
-2. Create new project
-3. Wait for database to provision
-4. Go to Settings > API
-5. Copy `URL` and `anon public` key
-6. Go to SQL Editor
-7. Copy and run the entire database schema from the artifacts
-
-### 4. Configure Environment
-
-Create `.env` file in project root:
-
-```env
-EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN=pk.eyJ1IjoieW91ci11c2VybmFtZSIsImEiOiJ5b3VyLXRva2VuIn0...
-EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
-
-### 5. Project Structure
-
-Copy all the TypeScript files from the artifacts into your project:
-
-```
-dictaat-app/
-├── app/
-│   ├── _layout.tsx              # Root layout with AuthProvider
-│   ├── (tabs)/
-│   │   ├── _layout.tsx          # Tab navigation
-│   │   ├── map.tsx              # Main map screen ⭐
-│   │   ├── rankings.tsx         # Leaderboards
-│   │   └── profile.tsx          # User profile
-│   └── auth/
-│       ├── login.tsx            # Login screen
-│       └── signup.tsx           # Sign up screen
-├── components/
-│   └── (custom components)
-├── services/
-│   ├── supabase.ts              # Supabase client
-│   ├── poi.service.ts           # POI fetching & management
-│   └── claim.service.ts         # Claim logic
-├── hooks/
-│   └── useAuth.tsx              # Authentication hook
-├── types/
-│   └── index.ts                 # TypeScript types
-├── utils/
-│   ├── distance.ts              # Geo calculations
-│   └── date.ts                  # Date utilities
-├── constants/
-│   └── config.ts                # App constants
-├── .env                         # Environment variables
-├── app.json                     # Expo config
-└── package.json
-```
-
-### 6. Run the App
-
-```bash
-# Start Expo development server
-npx expo start
-
-# Run on iOS simulator
-npx expo start --ios
-
-# Run on Android emulator
-npx expo start --android
-
-# Run on physical device
-# Scan QR code with Expo Go app
-```
 
 ## 📊 Database Schema Overview
 
@@ -175,16 +129,13 @@ npx expo start --android
 
 - **users** - User profiles (extends Supabase auth)
 - **pois** - Points of Interest (lazy loaded from OSM)
-- **claims** - Claim records (user, POI, minutes, month)
-- **active_sessions** - Current active claims
-- **user_stats** - Cached user statistics
-- **monthly_leaderboard** - Monthly rankings (materialized)
+- **claims** - Claim records (user, POI, seconds_earned, month)
 
 ### Key Functions
 
 - `nearby_pois(lat, lng, radius)` - Get POIs near location
 - `poi_leaderboard(poi_id, month)` - Get leaderboard for POI
-- `update_user_stats(user_id)` - Update user statistics
+- `daily_decay()` - Daily 10% reduction of all seconds_earned (runs at midnight UTC)
 
 ## 🎯 Core Philosophy: Against Drive-By Culture
 
@@ -202,26 +153,41 @@ In our fast-paced world, we often drive past amazing places without ever experie
 
 ### Claiming Rules
 
-1. **Minimum Duration**: 5 minutes (forces meaningful visits)
-2. **Daily Cap**: 60 minutes per POI (prevents camping, encourages variety)
-3. **Claim Radius**: 50 meters (you're there, not just nearby)
-4. **Location Updates**: Every 30 seconds (ensures continuous presence)
-5. **Session Ping**: Every 30 seconds (prevents GPS spoofing)
+1. **Entry Duration**: 60 seconds (normal) / 25 seconds (king)
+2. **Daily Cap**: 60 seconds per POI (prevents camping, encourages variety)
+3. **Claim Radius**: 220 meters (you're there, not just nearby)
+4. **Capture Mode**: Up to 60 seconds per session
+5. **Minute Bonus**: +10 seconds for completing a full minute
 
 ### King Determination
 
-- King = User with most minutes at a POI this month
+- **King** = User with most seconds at a POI this month
 - Updates real-time as claims complete
 - Can be overthrown at any moment!
+- **King Bonus**: Reduced entry timer (25s vs 60s) with gold visual feedback
+
+### Daily Decay System
+
+- **10% reduction** of all `seconds_earned` daily at midnight UTC
+- Keeps locations dynamic
+- Prevents inactive players from holding POIs forever
+- Everyone loses equally, so active players stay ahead
+
+### Rankings System
+
+- **Crown-based**: Ranked by number of POIs where you're king
+- **Scopes**: City, Country, World
+- **Time Periods**: Seasonal (monthly) or Lifetime
+- **Search**: Find yourself or other players
+- **Personal Tab**: View all your captured POIs with king status
 
 ### Categories
 
 - 🌳 Parks
-- 🍔 Restaurants
 - 🎨 Museums
 - 🏛️ Historic Sites
 - ⛪ Churches
-- ⭐ Tourist Attractions
+- 🗿 Monuments
 - 📍 Other
 
 ## 🔐 Security Features
@@ -229,12 +195,29 @@ In our fast-paced world, we often drive past amazing places without ever experie
 - Row Level Security (RLS) enabled on all tables
 - Users can only create claims for themselves
 - Server-side validation of claim duration
-- GPS spoofing protection (last_ping validation)
+- GPS spoofing protection (location validation)
 - Daily limit enforcement
 
 ## 🚀 Deployment
 
-### iOS
+### Android (Play Store)
+
+The app uses GitHub Actions for automated builds and Play Store submission:
+
+1. **Workflow**: `.github/workflows/android-internal-build.yml`
+2. **Build Profile**: `internal` (for internal testing)
+3. **Automatic Submission**: AAB is automatically submitted to Play Store Internal Testing
+
+**Manual Build:**
+```bash
+# Build for Android
+eas build --platform android --profile internal
+
+# Submit to Play Store
+eas submit --platform android --profile production
+```
+
+### iOS (App Store)
 
 ```bash
 # Build for iOS
@@ -244,31 +227,30 @@ eas build --platform ios
 eas submit --platform ios
 ```
 
-### Android
-
-```bash
-# Build for Android
-eas build --platform android
-
-# Submit to Play Store
-eas submit --platform android
-```
-
 ## 🎯 Roadmap
 
-### MVP (Current)
+### MVP (Current) ✅
 - [x] Map with POIs
-- [x] Basic claiming
-- [x] Leaderboards per POI
+- [x] Two-phase claiming system (entry + capture)
+- [x] King system with reduced entry timer
+- [x] Crown-based rankings (City, Country, World)
+- [x] Seasonal and Lifetime rankings
+- [x] Personal POI overview
+- [x] Daily decay system
 - [x] Authentication
 - [x] User profiles
+- [x] Multi-language support (EN/NL)
+- [x] POI drawer
+- [x] Search in rankings
 
 ### Phase 2
+- [ ] POI rotation system - Different POIs available each season (month)
 - [ ] Push notifications
 - [ ] Friends system
 - [ ] Challenges
 - [ ] Category leaderboards
-- [ ] City/Region leaderboards
+- [ ] Regional events
+- [ ] Achievement system
 
 ### Phase 3
 - [ ] Premium features
@@ -300,7 +282,7 @@ npx expo start
 
 # Check Supabase
 # Go to Supabase dashboard > Table Editor
-# View claims, users, sessions
+# View claims, users, pois
 ```
 
 ### Common Issues
