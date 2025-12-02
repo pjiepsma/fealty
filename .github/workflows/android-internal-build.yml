@@ -1,66 +1,59 @@
-name: Fealty Android Internal Test Build
-
+name: Build and Submit Android App
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
-      - staging
+  workflow_dispatch:
 
 jobs:
-  build:
+  build-and-submit:
     runs-on: ubuntu-latest
     steps:
-      - name: Setup repo
-        uses: actions/checkout@v4
-
-      - name: Setup node
-        uses: actions/setup-node@v4.0.2
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
-          node-version: 20.x
-          cache: 'npm'
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Setup Expo
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
+          node-version: '20'
+      
       - name: Install dependencies
-        run: npm ci
-
-      - name: Increment version code
+        run: npm install
+      
+      - name: Increment Android Version Code
         run: node scripts/increment-version-code.js
-
-      - name: Build Android app for internal testing
-        run: eas build --platform android --profile internal --local --non-interactive --output ${{ github.workspace }}/app-internal.aab
+      
+      - name: Commit version bump
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add app.json
+          git commit -m "chore: bump android version code [skip ci]" || echo "No changes to commit"
+          git push
+      
+      - name: Setup EAS CLI
+        run: npm install -g eas-cli
+      
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v2
+      
+      - name: Clear Gradle cache
+        run: rm -rf ~/.gradle/caches
+      
+      - name: Clean old builds
+        run: rm -f build-*.aab *.aab
+      
+      - name: Sync version to native files
+        run: npx expo prebuild
+      
+      - name: Build Android App
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-
-      - name: Upload AAB artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-internal-aab
-          path: ${{ github.workspace }}/app-internal.aab
-
-      - name: Upload mapping file
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
-        with:
-          name: mapping
-          path: ${{ github.workspace }}/android/app/build/outputs/mapping/release/mapping.txt
-
-      - name: Submit to Play Store Internal Testing
-        if: github.ref == 'refs/heads/main'
-        run: eas submit --platform android --path ${{ github.workspace }}/app-internal.aab --profile production --non-interactive
+        run: eas build --platform android --profile internal --non-interactive --local
+      
+      - name: Submit to Google Play Store
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          AAB_FILE=$(ls -t build-*.aab | head -1)
+          echo "Submitting: $AAB_FILE"
+          eas submit --platform android --path "$AAB_FILE" --profile production --non-interactive
