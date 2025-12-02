@@ -22,6 +22,14 @@ jobs:
       - name: Increment Android Version Code
         run: node scripts/increment-version-code.js
       
+      - name: Commit version bump
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add app.json
+          git commit -m "chore: bump android version code [skip ci]" || echo "No changes to commit"
+          git push
+      
       - name: Setup EAS CLI
         run: npm install -g eas-cli
       
