@@ -45,4 +45,4 @@ jobs:
       - name: Submit to Google Play Store
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas submit --platform android --path ./app-internal.aab --profile production --non-interactive
+        run: eas submit --platform android --path $(ls -t build-*.aab | head -1) --profile production --non-interactive
