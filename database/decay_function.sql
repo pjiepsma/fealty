@@ -38,3 +38,4 @@ $$ LANGUAGE plpgsql;
 -- To unschedule the job:
 -- SELECT cron.unschedule('daily-decay');
 
+

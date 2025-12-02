@@ -1,7 +1,7 @@
 {
   "cli": {
     "version": ">= 5.0.0",
-    "appVersionSource": "remote"
+    "appVersionSource": "local"
   },
   "build": {
     "internal": {
@@ -29,7 +29,8 @@
   "submit": {
     "production": {
       "android": {
-        "track": "internal"
+        "track": "internal",
+        "release_status": "draft"
       }
     }
   }
