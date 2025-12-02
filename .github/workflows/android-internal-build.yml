@@ -31,13 +31,16 @@ jobs:
       - name: Setup EAS CLI
         run: npm install -g eas-cli
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v2
+
       - name: Install dependencies
         run: npm install
 
       - name: Build Android App
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas build --platform android --profile production --non-interactive
+        run: eas build --platform android --profile production --non-interactive --local
 
       - name: Submit to Google Play Store
         env:
