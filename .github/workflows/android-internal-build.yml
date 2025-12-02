@@ -37,6 +37,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Clear Gradle cache
+        run: rm -rf ~/.gradle/caches
+
       - name: Build Android App
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
