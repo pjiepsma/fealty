@@ -1,5 +1,4 @@
 name: Build and Submit Android App
-
 on:
   push:
     branches:
@@ -11,15 +10,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-
+      
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '20'
-
+      
       - name: Increment Android Version Code
         run: node scripts/increment-version-code.js
-
+      
       - name: Commit and push version bump
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
@@ -27,25 +26,44 @@ jobs:
           git add app.json
           git commit -m "chore: bump android version code" || echo "No changes to commit"
           git push
-
+      
       - name: Setup EAS CLI
         run: npm install -g eas-cli
-
+      
       - name: Setup Android SDK
         uses: android-actions/setup-android@v2
-
+      
       - name: Install dependencies
         run: npm install
-
+      
       - name: Clear Gradle cache
         run: rm -rf ~/.gradle/caches
-
+      
+      - name: Clean old builds
+        run: rm -f build-*.aab *.aab
+      
       - name: Build Android App
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: eas build --platform android --profile production --non-interactive --local
-
+      
+      - name: Find and verify build file
+        id: find-build
+        run: |
+          AAB_FILE=$(ls -t build-*.aab 2>/dev/null | head -1)
+          
+          if [ -z "$AAB_FILE" ]; then
+            echo "ERROR: No .aab file found after build!"
+            ls -lah
+            exit 1
+          fi
+          
+          echo "Found build file: $AAB_FILE"
+          echo "aab_path=$AAB_FILE" >> $GITHUB_OUTPUT
+      
       - name: Submit to Google Play Store
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas submit --platform android --path $(ls -t build-*.aab | head -1) --profile production --non-interactive
+        run: |
+          echo "Submitting: ${{ steps.find-build.outputs.aab_path }}"
+          eas submit --platform android --path "${{ steps.find-build.outputs.aab_path }}" --non-interactive
