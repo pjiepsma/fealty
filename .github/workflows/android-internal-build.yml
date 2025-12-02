@@ -10,102 +10,42 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-      
-      - name: Check if this is a version bump commit
-        id: check_commit
-        run: |
-          if [[ "${{ github.event.head_commit.message }}" == "chore: bump android version code" ]]; then
-            echo "is_version_bump=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_version_bump=false" >> $GITHUB_OUTPUT
-          fi
       
       - name: Setup Node.js
-        if: steps.check_commit.outputs.is_version_bump == 'false'
         uses: actions/setup-node@v3
         with:
           node-version: '20'
+      
+      - name: Install dependencies
+        run: npm install
       
       - name: Increment Android Version Code
-        if: steps.check_commit.outputs.is_version_bump == 'false'
         run: node scripts/increment-version-code.js
       
-      - name: Commit and push version bump
-        if: steps.check_commit.outputs.is_version_bump == 'false'
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add app.json
-          git commit -m "chore: bump android version code"
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Exit after version bump
-        if: steps.check_commit.outputs.is_version_bump == 'false'
-        run: |
-          echo "Version bumped. Workflow will re-trigger with new version."
-          exit 0
-      
-      # Build steps only run if this IS a version bump commit
-      - name: Setup Node.js for build
-        if: steps.check_commit.outputs.is_version_bump == 'true'
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20'
-      
       - name: Setup EAS CLI
-        if: steps.check_commit.outputs.is_version_bump == 'true'
         run: npm install -g eas-cli
       
       - name: Setup Android SDK
-        if: steps.check_commit.outputs.is_version_bump == 'true'
         uses: android-actions/setup-android@v2
       
-      - name: Install dependencies
-        if: steps.check_commit.outputs.is_version_bump == 'true'
-        run: npm install
-      
       - name: Clear Gradle cache
-        if: steps.check_commit.outputs.is_version_bump == 'true'
         run: rm -rf ~/.gradle/caches
       
       - name: Clean old builds
-        if: steps.check_commit.outputs.is_version_bump == 'true'
         run: rm -f build-*.aab *.aab
       
-      - name: Sync native files with app.json
-        if: steps.check_commit.outputs.is_version_bump == 'true'
-        run: npx expo prebuild --clean
+      - name: Sync version to native files
+        run: npx expo prebuild
       
       - name: Build Android App
-        if: steps.check_commit.outputs.is_version_bump == 'true'
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas build --platform android --profile production --non-interactive --local
-      
-      - name: Find and verify build file
-        if: steps.check_commit.outputs.is_version_bump == 'true'
-        id: find-build
-        run: |
-          AAB_FILE=$(ls -t build-*.aab 2>/dev/null | head -1)
-          
-          if [ -z "$AAB_FILE" ]; then
-            echo "ERROR: No .aab file found after build!"
-            ls -lah
-            exit 1
-          fi
-          
-          echo "Found build file: $AAB_FILE"
-          echo "aab_path=$AAB_FILE" >> $GITHUB_OUTPUT
+        run: eas build --platform android --profile internal --non-interactive --local
       
       - name: Submit to Google Play Store
-        if: steps.check_commit.outputs.is_version_bump == 'true'
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          echo "Submitting: ${{ steps.find-build.outputs.aab_path }}"
-          eas submit --platform android --path "${{ steps.find-build.outputs.aab_path }}" --non-interactive
+          AAB_FILE=$(ls -t build-*.aab | head -1)
+          echo "Submitting: $AAB_FILE"
+          eas submit --platform android --path "$AAB_FILE" --profile production --non-interactive
