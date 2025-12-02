@@ -38,6 +38,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Increment version code
+        run: node scripts/increment-version-code.js
+
       - name: Build Android app for internal testing
         run: eas build --platform android --profile internal --local --non-interactive --output ${{ github.workspace }}/app-internal.aab
         env:
