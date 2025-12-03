@@ -30,7 +30,7 @@
     "production": {
       "android": {
         "track": "internal",
-        "release_status": "draft"
+        "releaseStatus": "draft"
       }
     }
   }

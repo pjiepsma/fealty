@@ -54,6 +54,10 @@ jobs:
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          AAB_FILE=$(ls -t build-*.aab | head -1)
+          AAB_FILE=$(ls -t build-*.aab 2>/dev/null | head -1)
+          if [ -z "$AAB_FILE" ]; then
+            echo "Error: No AAB file found (build-*.aab)"
+            exit 1
+          fi
           echo "Submitting: $AAB_FILE"
           eas submit --platform android --path "$AAB_FILE" --profile production --non-interactive
